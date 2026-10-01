@@ -1,0 +1,79 @@
+# 财税企管云 · 生产编排（数据库 + Django + 自动 HTTPS 网关）
+# 用法：在项目根目录执行
+#   cp deploy/prod/.env.example deploy/prod/.env   # 按需填写
+#   docker compose -f deploy/prod/docker-compose.yml --env-file deploy/prod/.env up -d --build
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-finops}"
+      POSTGRES_USER: "${POSTGRES_USER:-finops}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD}"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-finops}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/prod/Dockerfile
+    restart: unless-stopped
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings_prod
+      DATABASE_URL: "postgres://${POSTGRES_USER:-finops}:${DB_PASSWORD}@db:5432/${POSTGRES_DB:-finops}"
+      DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY}"
+      ALLOWED_HOSTS: "${ALLOWED_HOSTS}"
+      DEBUG: "False"
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS}"
+      # —— 以下为可选真实第三方能力，留空则走演示模式 —— #
+      LLM_API_KEY: "${LLM_API_KEY:-}"
+      LLM_BASE_URL: "${LLM_BASE_URL:-https://api.deepseek.com/v1}"
+      # 品牌（白标）
+      BRAND_NAME: "${BRAND_NAME:-财税企管云}"
+      BRAND_LOGO_CHAR: "${BRAND_LOGO_CHAR:-财}"
+      BRAND_SUBTITLE: "${BRAND_SUBTITLE:-代账公司 · 一体化智能管理平台}"
+      ICP_BEIAN: "${ICP_BEIAN:-}"
+      POLICE_BEIAN: "${POLICE_BEIAN:-}"
+      WX_OPEN_APPID: "${WX_OPEN_APPID:-}"
+      WX_OPEN_SECRET: "${WX_OPEN_SECRET:-}"
+      WX_SCAN_MOCK: "False"
+      WECHAT_PAY_APPID: "${WECHAT_PAY_APPID:-}"
+      WECHAT_PAY_MCH_ID: "${WECHAT_PAY_MCH_ID:-}"
+      WECHAT_PAY_API_KEY: "${WECHAT_PAY_API_KEY:-}"
+      WECHAT_PAY_ENABLED: "${WECHAT_PAY_ENABLED:-False}"
+      QICHACHA_API_KEY: "${QICHACHA_API_KEY:-}"
+      SITE_BASE_URL: "https://${SITE_DOMAIN}"
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8000"
+    volumes:
+      # 持久化上传附件（通知文件 / 合同扫描件等），避免容器重启丢失
+      - media_data:/app/media
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      SITE_DOMAIN: "${SITE_DOMAIN}"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
+  media_data:

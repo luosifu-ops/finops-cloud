@@ -1,0 +1,48 @@
+<!-- 企业查询（对标企查查/天眼查） -->
+<view class="page-pad">
+  <view class="hero">
+    <view class="hero-title">企业查询</view>
+    <view class="hero-sub">工商信息 · 对标企查查/天眼查</view>
+  </view>
+
+  <view class="search-bar">
+    <input class="sinput" placeholder="输入企业名称/关键词" value="{{keyword}}" bindinput="onKeyword" confirm-type="search" bindconfirm="search" />
+    <view class="btn btn-blue sbtn" bindtap="search">搜索</view>
+  </view>
+
+  <view class="card" wx:for="{{list}}" wx:key="credit_code" bindtap="open" data-code="{{item.credit_code}}">
+    <view class="row" style="border:none;padding-top:0;">
+      <view class="row-main">
+        <view class="row-title">{{item.name}}</view>
+        <view class="row-sub">{{item.legal}} · 注册资本 {{item.capital}}</view>
+      </view>
+      <view class="tag {{item.status === '存续' || item.status === '在业' ? 'tag-green' : 'tag-orange'}}">{{item.status}}</view>
+    </view>
+    <view class="remark">成立 {{item.established}} · {{item.address}}</view>
+  </view>
+
+  <view class="empty" wx:if="{{!list.length && !loading}}">输入关键词查询企业工商信息</view>
+  <view class="empty" wx:if="{{loading}}">查询中…</view>
+
+  <!-- 工商详情弹层 -->
+  <view wx:if="{{detail}}" class="mask" bindtap="closeDetail">
+    <view class="sheet" catchtap="">
+      <view class="row" style="border:none;padding-top:0;">
+        <view class="row-main">
+          <view class="row-title">{{detail.name}}</view>
+          <view class="row-sub">{{detail.status}}</view>
+        </view>
+        <view class="tag" bindtap="closeDetail">✕</view>
+      </view>
+      <view class="bd">
+        <view class="bd-col" style="width:50%;"><text class="bd-k">法人</text><text class="bd-v" style="font-size:22rpx;">{{detail.legal}}</text></view>
+        <view class="bd-col" style="width:50%;"><text class="bd-k">注册资本</text><text class="bd-v" style="font-size:22rpx;">{{detail.capital}}</text></view>
+        <view class="bd-col" style="width:50%;"><text class="bd-k">电话</text><text class="bd-v" style="font-size:22rpx;">{{detail.phone}}</text></view>
+        <view class="bd-col" style="width:50%;"><text class="bd-k">成立</text><text class="bd-v" style="font-size:22rpx;">{{detail.established}}</text></view>
+        <view class="bd-col" style="width:100%;"><text class="bd-k">信用代码</text><text class="bd-v" style="font-size:20rpx;">{{detail.credit_code}}</text></view>
+        <view class="bd-col" style="width:100%;"><text class="bd-k">地址</text><text class="bd-v" style="font-size:20rpx;">{{detail.address}}</text></view>
+        <view class="bd-col" style="width:100%;"><text class="bd-k">经营范围</text><text class="bd-v" style="font-size:20rpx;font-weight:500;">{{detail.scope}}</text></view>
+      </view>
+    </view>
+  </view>
+</view>

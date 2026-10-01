@@ -1,0 +1,7 @@
+.login-wrap { min-height: 100vh; background: linear-gradient(160deg, #FF6B9D, #FF8E53); padding: 0 0 60rpx; }
+.login-hero { padding: 130rpx 0 80rpx; text-align: center; color: #fff; }
+.logo { font-size: 130rpx; }
+.app-name { font-size: 54rpx; font-weight: 800; margin-top: 16rpx; letter-spacing: 3rpx; }
+.app-slogan { font-size: 28rpx; opacity: .92; margin-top: 14rpx; }
+.login-card { margin: 0 40rpx; background: #fff; border-radius: 32rpx; padding: 44rpx 40rpx; box-shadow: 0 20rpx 50rpx rgba(120, 60, 90, .2); }
+.tip { text-align: center; color: #B7BACE; font-size: 24rpx; margin-top: 28rpx; }

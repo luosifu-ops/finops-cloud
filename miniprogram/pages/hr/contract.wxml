@@ -1,0 +1,26 @@
+<!-- 劳动合同 -->
+<view class="page-pad">
+  <view class="hero">
+    <view class="hero-title">劳动合同</view>
+    <view class="hero-sub">合同档案与到期提醒</view>
+  </view>
+
+  <view class="card" wx:for="{{list}}" wx:key="id">
+    <view class="row" style="border:none;padding-top:0;">
+      <view class="row-main">
+        <view class="row-title">{{item.type_name}}</view>
+        <view class="row-sub">合同编号 {{item.contract_no || '—'}}</view>
+      </view>
+      <view class="tag {{item.status === 'ACTIVE' ? 'tag-green' : 'tag-gray'}}">{{item.status_name}}</view>
+    </view>
+    <view class="bd">
+      <view class="bd-col"><text class="bd-k">签订日</text><text class="bd-v" style="font-size:22rpx;">{{item.signed_date || '—'}}</text></view>
+      <view class="bd-col"><text class="bd-k">生效</text><text class="bd-v" style="font-size:22rpx;">{{item.start_date || '—'}}</text></view>
+      <view class="bd-col"><text class="bd-k">到期</text><text class="bd-v" style="font-size:22rpx;">{{item.end_date || '—'}}</text></view>
+      <view class="bd-col"><text class="bd-k">续签</text><text class="bd-v">{{item.is_renewal ? '是' : '否'}}</text></view>
+    </view>
+    <view class="remark" wx:if="{{item.remark}}">备注：{{item.remark}}</view>
+  </view>
+
+  <view class="empty" wx:if="{{!list.length}}">暂无合同档案</view>
+</view>

@@ -1,0 +1,55 @@
+<view class="hero">
+  <view class="hero-row">
+    <view>
+      <view class="hero-title">{{greeting}}，{{user.display_name || user.username || '老板'}}</view>
+      <view class="hero-sub">{{month}} · 公司全景数据</view>
+    </view>
+    <view class="icon-badge" style="background:rgba(255,255,255,.25)">📊</view>
+  </view>
+</view>
+
+<view class="page-pad">
+  <view class="metabar" wx:if="{{meta}}">{{meta}}</view>
+  <view class="errbox" wx:if="{{error}}">驾驶舱加载失败：{{error}}（请下拉刷新）</view>
+  <view class="stat-grid">
+    <view class="stat"><view class="stat-in g-pink">
+      <view class="stat-label">本月业绩</view>
+      <view class="stat-num">¥{{perf.amount}}</view>
+    </view></view>
+    <view class="stat"><view class="stat-in g-green">
+      <view class="stat-label">已回款</view>
+      <view class="stat-num">¥{{perf.received}}</view>
+    </view></view>
+    <view class="stat"><view class="stat-in g-orange">
+      <view class="stat-label">目标完成</view>
+      <view class="stat-num">{{perf.completion}}<text class="stat-unit">%</text></view>
+    </view></view>
+    <view class="stat"><view class="stat-in g-blue">
+      <view class="stat-label">订单数</view>
+      <view class="stat-num">{{perf.orders}}</view>
+    </view></view>
+  </view>
+
+  <view class="section-title"><text class="bar"></text>部门业绩</view>
+  <view class="card" wx:if="{{depts.length}}">
+    <view class="row" wx:for="{{depts}}" wx:key="department_id">
+      <view class="row-main">
+        <view class="row-title">{{item.department_name}}</view>
+        <view class="row-sub">¥{{item.amount}} · 目标 ¥{{item.target}}</view>
+        <view class="progress" style="margin-top:14rpx"><view class="progress-in" style="width:{{item.completion}}%"></view></view>
+      </view>
+      <view class="tag tag-green">{{item.completion}}%</view>
+    </view>
+  </view>
+  <view class="empty" wx:else>暂无部门数据</view>
+
+  <view class="section-title"><text class="bar"></text>快捷入口</view>
+  <view class="card">
+    <view class="grid">
+      <view class="grid-item" wx:for="{{entries}}" wx:key="url" bindtap="go" data-url="{{item.url}}">
+        <view class="grid-icon" style="background:{{item.color}}">{{item.icon}}</view>
+        <view class="grid-label">{{item.label}}</view>
+      </view>
+    </view>
+  </view>
+</view>

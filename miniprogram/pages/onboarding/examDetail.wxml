@@ -1,0 +1,33 @@
+<!-- 考试答题 -->
+<view class="page-pad">
+
+  <!-- 考试信息 -->
+  <view class="card" wx:if="{{phase==='info'}}">
+    <view class="row-title" style="font-size:36rpx;">{{exam.title}}</view>
+    <view class="row-sub" style="margin:12rpx 0;">{{exam.description || ''}}</view>
+    <view class="row" style="border:none;"><view class="row-main"><view class="row-sub">题量 / 及格分</view></view><text>{{exam.question_count}} 题 · {{exam.pass_score}} 分</text></view>
+    <view class="row" style="border:none;"><view class="row-main"><view class="row-sub">限时</view></view><text>{{exam.duration || '—'}} 分钟</text></view>
+    <view class="btn btn-pink btn-block" bindtap="start">开始考试</view>
+  </view>
+
+  <!-- 答题中 -->
+  <block wx:if="{{phase==='doing'}}">
+    <view class="card" wx:for="{{questions}}" wx:for-item="q" wx:key="id">
+      <view class="row-title" style="font-size:30rpx;">{{index+1}}. {{q.stem}}</view>
+      <view class="opt {{answers[q.id]===o.key?'opt-on':''}}" wx:for="{{q.options}}" wx:for-item="o" wx:key="key" bindtap="answer" data-q="{{q.id}}" data-k="{{o.key}}">
+        <text class="opt-key">{{o.key}}</text><text class="opt-text">{{o.text}}</text>
+      </view>
+    </view>
+    <view class="btn btn-green btn-block" bindtap="submit">交卷</view>
+  </block>
+
+  <!-- 成绩 -->
+  <view class="card" wx:if="{{phase==='result'}}">
+    <view class="hero-sub" style="color:var(--ink);text-align:center;font-size:30rpx;">本次得分</view>
+    <view style="text-align:center;font-size:80rpx;font-weight:800;color:{{result.passed?'#1DD1A1':'#FF6B6B'}};">{{result.score}}</view>
+    <view style="text-align:center;">
+      <text class="tag {{result.passed?'tag-green':'tag-orange'}}">{{result.passed?'恭喜及格':'未及格'}}</text>
+    </view>
+    <view class="btn btn-ghost btn-block" bindtap="back">返回考试列表</view>
+  </view>
+</view>

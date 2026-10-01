@@ -1,0 +1,16 @@
+<!-- 入职须知确认 -->
+<view class="page-pad">
+  <view class="section-title"><text class="bar"></text>入职须知确认</view>
+  <view class="card" wx:for="{{list}}" wx:key="id">
+    <view class="row" style="border:none;">
+      <view class="row-main">
+        <view class="row-title">{{item.title}}</view>
+        <view class="row-sub">{{item.category_name || ''}} · 版本 {{item.version || '—'}} · 生效 {{item.effective_date || '—'}}</view>
+      </view>
+      <text class="tag {{item.acked?'tag-green':'tag-orange'}}">{{item.acked?'已确认':'待确认'}}</text>
+    </view>
+    <view class="remark" wx:if="{{item.content}}">{{item.content}}</view>
+    <view class="btn btn-ghost btn-block" wx:if="{{!item.acked}}" bindtap="ack" data-id="{{item.id}}">我已阅读并确认</view>
+  </view>
+  <view class="empty" wx:if="{{!list.length}}">暂无须知</view>
+</view>

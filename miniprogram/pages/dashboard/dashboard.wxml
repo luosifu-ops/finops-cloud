@@ -1,0 +1,57 @@
+<!-- 经营看板 -->
+<view class="page-pad">
+  <view class="hero">
+    <view class="hero-title">经营看板</view>
+    <view class="hero-sub">{{month || '本月'}} · 实时业绩与待办</view>
+  </view>
+
+  <!-- 本月业绩 -->
+  <view class="card" wx:if="{{perf}}">
+    <view class="row" style="border:none;padding-top:0;">
+      <view class="row-main">
+        <view class="row-title">本月业绩</view>
+        <view class="row-sub">目标 ¥{{perf.target}}</view>
+      </view>
+      <view class="tag tag-green">完成 {{perf.completion}}%</view>
+    </view>
+    <view class="big-amount">¥{{perf.amount}}</view>
+    <view class="progress" style="margin-top:10rpx;"><view class="progress-in" style="width:{{perf.completion}}%;"></view></view>
+    <view class="bd">
+      <view class="bd-col" style="width:25%;"><text class="bd-k">已收</text><text class="bd-v" style="font-size:22rpx;">¥{{perf.received}}</text></view>
+      <view class="bd-col" style="width:25%;"><text class="bd-k">应收</text><text class="bd-v" style="font-size:22rpx;">¥{{perf.receivable}}</text></view>
+      <view class="bd-col" style="width:25%;"><text class="bd-k">订单</text><text class="bd-v" style="font-size:22rpx;">{{perf.orders}}</text></view>
+      <view class="bd-col" style="width:25%;"><text class="bd-k">目标</text><text class="bd-v" style="font-size:22rpx;">¥{{perf.target}}</text></view>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{!perf}}">暂无业绩数据</view>
+
+  <!-- 部门业绩 -->
+  <view class="section-title"><text class="bar"></text>部门业绩</view>
+  <view class="card" wx:for="{{depts}}" wx:key="department_id">
+    <view class="row" style="border:none;padding-top:0;">
+      <view class="row-main">
+        <view class="row-title">{{item.department_name}}</view>
+        <view class="row-sub">¥{{item.amount}} / 目标 ¥{{item.target}}</view>
+      </view>
+      <view class="tag tag-blue">{{item.completion}}%</view>
+    </view>
+    <view class="progress"><view class="progress-in" style="width:{{item.completion}}%;"></view></view>
+  </view>
+
+  <!-- 今日待办 -->
+  <view class="section-title"><text class="bar"></text>今日待办</view>
+  <view class="card" wx:if="{{todo}}">
+    <view class="row">
+      <view class="row-main"><view class="row-title">待我审批</view><view class="row-sub">需处理的审批单</view></view>
+      <view class="tag tag-orange">{{todo.pending_approvals}} 单</view>
+    </view>
+    <view class="row">
+      <view class="row-main"><view class="row-title">日报提交</view><view class="row-sub">{{todo.date}}</view></view>
+      <view class="tag {{todo.daily_report_submitted ? 'tag-green' : 'tag-red'}}">{{todo.daily_report_submitted ? '已提交' : '未提交'}}</view>
+    </view>
+    <view class="row">
+      <view class="row-main"><view class="row-title">逾期账务</view><view class="row-sub">超期未处理任务</view></view>
+      <view class="tag {{todo.overdue_accounting_tasks ? 'tag-red' : 'tag-gray'}}">{{todo.overdue_accounting_tasks}} 项</view>
+    </view>
+  </view>
+</view>

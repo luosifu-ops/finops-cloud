@@ -1,0 +1,37 @@
+<!-- 线索详情 -->
+<view class="page-pad">
+  <view class="card">
+    <view class="row-title" style="font-size:36rpx;">{{lead.name}} <text class="tag {{lead.status==='DEAL'?'tag-green':(lead.status==='LOST'?'tag-gray':'tag-orange')}}" style="margin-left:10rpx;">{{lead.status_name}}</text></view>
+    <view class="row" style="border:none;"><view class="row-main"><view class="row-title">电话</view></view><text>{{lead.phone||'—'}}</text></view>
+    <view class="row" style="border:none;"><view class="row-main"><view class="row-title">微信</view></view><text>{{lead.wechat||'—'}}</text></view>
+    <view class="row" style="border:none;"><view class="row-main"><view class="row-title">公司</view></view><text>{{lead.company||'—'}}</text></view>
+    <view class="row" style="border:none;"><view class="row-main"><view class="row-title">来源</view></view><text>{{lead.source_name||'—'}}</text></view>
+    <view class="row" style="border:none;"><view class="row-main"><view class="row-title">意向</view></view><text>{{lead.intention||'—'}}</text></view>
+    <view class="row" style="border:none;"><view class="row-main"><view class="row-title">备注</view></view><text>{{lead.remark||'—'}}</text></view>
+  </view>
+
+  <!-- 通话记录 -->
+  <view class="section-title"><text class="bar"></text>通话记录</view>
+  <view class="card" wx:for="{{calls}}" wx:key="id">
+    <view class="row" style="border:none;">
+      <view class="row-main">
+        <view class="row-title">{{item.result_name}}</view>
+        <view class="row-sub">{{item.summary || '—'}} · {{item.duration||0}}秒</view>
+      </view>
+      <text class="tag tag-blue" wx:if="{{item.has_wechat}}">已加微</text>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{!calls.length}}">还没有通话记录</view>
+
+  <!-- 新增通话 -->
+  <view class="card">
+    <view class="section-title"><text class="bar"></text>记录本次通话</view>
+    <picker mode="selector" range="{{results}}" range-key="label" bindchange="onResult">
+      <view class="field"><view class="field-label">通话结果</view><view class="input">{{results[ri].label}}</view></view>
+    </picker>
+    <view class="field"><view class="field-label">沟通要点</view><textarea class="input" value="{{summary}}" bindinput="onSummary" placeholder="聊了什么、下一步"/></view>
+    <view class="field"><view class="field-label">通话时长(秒)</view><input class="input" type="number" value="{{duration}}" bindinput="onDuration" placeholder="120"/></view>
+    <view class="row" style="border:none;"><view class="row-main"><view class="row-title">是否加微信</view></view><switch checked="{{hasWechat}}" bindchange="onWechat" color="#FF5C8A"/></view>
+    <view class="btn btn-pink btn-block" bindtap="saveCall">保存通话记录</view>
+  </view>
+</view>

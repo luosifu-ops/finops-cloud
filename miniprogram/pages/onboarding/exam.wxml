@@ -1,0 +1,13 @@
+<!-- 考试列表 -->
+<view class="page-pad">
+  <view class="card" wx:for="{{list}}" wx:key="id" bindtap="open" data-id="{{item.id}}">
+    <view class="row" style="border:none;">
+      <view class="row-main">
+        <view class="row-title">{{item.title}}</view>
+        <view class="row-sub">{{item.bank_name || ''}} · {{item.question_count}}题 · 及格{{item.pass_score}}分</view>
+      </view>
+      <text class="tag {{item.status==='PUBLISHED'?'tag-green':'tag-gray'}}">{{item.status_name}}</text>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{!list.length}}">暂无考试</view>
+</view>

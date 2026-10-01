@@ -1,0 +1,20 @@
+<!-- 审批中心 -->
+<view class="page-pad">
+  <view class="seg">
+    <view class="seg-item {{tab==='todo'?'seg-on':''}}" bindtap="switchTab" data-tab="todo">待我审批</view>
+    <view class="seg-item {{tab==='my'?'seg-on':''}}" bindtap="switchTab" data-tab="my">我发起的</view>
+  </view>
+
+  <view class="card" wx:for="{{list}}" wx:key="id" bindtap="open" data-id="{{item.id}}">
+    <view class="row" style="border:none;">
+      <view class="row-main">
+        <view class="row-title">{{item.title || item.biz_type_name || '审批单'}}</view>
+        <view class="row-sub">{{item.biz_type_name || ''}} · {{item.applicant_name || ''}} · {{item.department_name || ''}}</view>
+      </view>
+      <text class="tag {{item.status==='APPROVED'?'tag-green':(item.status==='REJECTED'?'tag-orange':'tag-blue')}}">{{item.status_name}}</text>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{!list.length}}">{{tab==='todo'?'太棒了，没有待办':'还没有发起过审批'}}</view>
+
+  <view class="fab" bindtap="goCreate">＋</view>
+</view>

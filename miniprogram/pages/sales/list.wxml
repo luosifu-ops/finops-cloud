@@ -1,0 +1,24 @@
+<!-- 电销线索列表 -->
+<view class="page-pad">
+  <view class="seg">
+    <view class="seg-item {{status===''?'seg-on':''}}" bindtap="filter" data-s="">全部</view>
+    <view class="seg-item {{status==='FOLLOWING'?'seg-on':''}}" bindtap="filter" data-s="FOLLOWING">跟进中</view>
+    <view class="seg-item {{status==='INTENTION'?'seg-on':''}}" bindtap="filter" data-s="INTENTION">高意向</view>
+    <view class="seg-item {{status==='DEAL'?'seg-on':''}}" bindtap="filter" data-s="DEAL">已成交</view>
+    <view class="seg-item {{status==='LOST'?'seg-on':''}}" bindtap="filter" data-s="LOST">已流失</view>
+  </view>
+
+  <view class="card" wx:for="{{list}}" wx:key="id" bindtap="open" data-id="{{item.id}}">
+    <view class="row" style="border:none;">
+      <view class="row-main">
+        <view class="row-title">{{item.name}} <text style="font-size:24rpx;color:var(--sub);">{{item.company||''}}</text></view>
+        <view class="row-sub">{{item.phone}} · {{item.source_name||''}} · {{item.owner_name||'未分配'}}</view>
+      </view>
+      <view style="text-align:right;">
+        <text class="tag {{item.status==='DEAL'?'tag-green':(item.status==='LOST'?'tag-gray':'tag-orange')}}">{{item.status_name}}</text>
+        <view style="font-size:22rpx;color:var(--sub);margin-top:8rpx;">{{item.level_name||''}}</view>
+      </view>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{!list.length}}">暂无线索</view>
+</view>

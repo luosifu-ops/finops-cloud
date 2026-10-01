@@ -1,0 +1,31 @@
+{
+  "name": "finops-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5173",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
+    "axios": "^1.7.9",
+    "dayjs": "^1.11.13",
+    "echarts": "^5.5.1",
+    "element-plus": "^2.9.1",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
+    "pinia": "^2.3.0",
+    "puppeteer": "^25.10.0",
+    "qrcode": "^1.5.4",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-legacy": "^6.1.1",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "terser": "^5.51.2",
+    "vite": "^6.0.7"
+  }
+}

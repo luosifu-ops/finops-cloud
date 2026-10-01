@@ -1,0 +1,50 @@
+<!-- 考勤打卡 -->
+<view class="page-pad">
+  <view class="hero">
+    <view class="hero-title">考勤打卡</view>
+    <view class="hero-sub">打卡记录与月度考勤汇总</view>
+  </view>
+
+  <view class="card" wx:if="{{monthly}}">
+    <view class="row" style="border:none;padding-top:0;">
+      <view class="row-main">
+        <view class="row-title">{{monthly.month}} 考勤月报</view>
+        <view class="row-sub">本月出勤概览</view>
+      </view>
+    </view>
+    <view class="stat-grid" style="margin-top:10rpx;">
+      <view class="stat"><view class="stat-in" style="background:var(--g-green);">
+        <view class="stat-label">正常出勤</view><view class="stat-num">{{monthly.normal_days}}<text class="stat-unit">天</text></view>
+      </view></view>
+      <view class="stat"><view class="stat-in" style="background:var(--g-orange);">
+        <view class="stat-label">迟到</view><view class="stat-num">{{monthly.late_times}}<text class="stat-unit">次</text></view>
+      </view></view>
+      <view class="stat"><view class="stat-in" style="background:var(--g-red);">
+        <view class="stat-label">缺勤</view><view class="stat-num">{{monthly.absent_days}}<text class="stat-unit">天</text></view>
+      </view></view>
+      <view class="stat"><view class="stat-in" style="background:var(--g-blue);">
+        <view class="stat-label">加班</view><view class="stat-num">{{monthly.overtime_hours}}<text class="stat-unit">时</text></view>
+      </view></view>
+    </view>
+  </view>
+
+  <view class="section-title"><text class="bar"></text>打卡明细</view>
+  <view class="card" wx:for="{{list}}" wx:key="id">
+    <view class="row" style="border:none;padding-top:0;">
+      <view class="row-main">
+        <view class="row-title">{{item.date}}</view>
+        <view class="row-sub">{{item.check_in_location || '—'}}</view>
+      </view>
+      <view class="tag {{item.status === 'NORMAL' ? 'tag-green' : (item.status === 'LATE' ? 'tag-orange' : 'tag-gray')}}">{{item.status_name}}</view>
+    </view>
+    <view class="bd">
+      <view class="bd-col"><text class="bd-k">上班</text><text class="bd-v">{{item.check_in || '—'}}</text></view>
+      <view class="bd-col"><text class="bd-k">下班</text><text class="bd-v">{{item.check_out || '—'}}</text></view>
+      <view class="bd-col"><text class="bd-k">工时</text><text class="bd-v">{{item.work_hours || '—'}}</text></view>
+      <view class="bd-col"><text class="bd-k">迟到</text><text class="bd-v" style="color:var(--c-orange);">{{item.late_minutes || 0}}分</text></view>
+    </view>
+    <view class="remark" wx:if="{{item.remark}}">备注：{{item.remark}}</view>
+  </view>
+
+  <view class="empty" wx:if="{{!loading && !list.length}}">暂无打卡记录</view>
+</view>

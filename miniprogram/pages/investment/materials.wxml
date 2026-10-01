@@ -1,0 +1,22 @@
+<view class="page-pad">
+  <view class="metabar" wx:if="{{meta}}">{{meta}}</view>
+  <view wx:if="{{tabs.length}}" class="seg">
+    <view class="seg-item {{tab===item.value?'seg-on':''}}" wx:for="{{tabs}}" wx:key="value" bindtap="filter" data-v="{{item.value}}">{{item.label}}</view>
+  </view>
+  <view wx:if="{{search}}" class="field"><input class="input" placeholder="{{search.placeholder||'搜索'}}" bindinput="onSearch" /></view>
+
+  <view class="card" wx:for="{{list}}" wx:key="id">
+    <view class="row" style="border:none">
+      <view class="row-main">
+        <view class="row-title">{{item.title}}</view>
+        <view class="row-sub" wx:for="{{item.subs}}" wx:for-item="s" wx:key="label">{{s.label}}：{{s.value}}</view>
+      </view>
+      <view style="text-align:right;min-width:140rpx">
+        <text class="tag {{item.tagCls}}" wx:if="{{item.tag}}">{{item.tag}}</text>
+        <view class="row-sub" wx:if="{{item.right}}" style="margin-top:8rpx">{{item.right}}</view>
+      </view>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{!list.length && !error}}">{{emptyText}}</view>
+  <view class="errbox" wx:if="{{error}}">加载失败：{{error}}（请下拉刷新或返回重进）</view>
+</view>

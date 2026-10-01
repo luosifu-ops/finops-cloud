@@ -1,0 +1,20 @@
+<!-- 资料列表 -->
+<view class="page-pad">
+  <view class="metabar" wx:if="{{meta}}">{{meta}}</view>
+  <view class="errbox" wx:if="{{error}}">加载失败：{{error}}（请下拉刷新）</view>
+  <view class="card" wx:for="{{list}}" wx:key="id" bindtap="open" data-id="{{item.id}}">
+    <view class="row" style="border:none;">
+      <view class="row-main">
+        <view class="row-title">{{item.title}}</view>
+        <view class="row-sub">{{item.category_name || item.knowledge_category_name || item.level_name || ''}}</view>
+      </view>
+      <view style="display:flex;align-items:center;">
+        <text class="tag tag-orange" wx:if="{{type==='regulation' && item.must_read}}">必读</text>
+        <text class="tag tag-green" wx:if="{{type==='regulation' && item.acked}}" style="margin-left:8rpx;">已读</text>
+        <text class="tag tag-green" wx:if="{{type==='knowledge' && item.finished}}" style="margin-left:8rpx;">已学</text>
+        <text style="margin-left:10rpx;color:#9AA0B4;">›</text>
+      </view>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{!list.length}}">暂无内容</view>
+</view>

@@ -1,0 +1,30 @@
+<!-- 入职培训首页 -->
+<view class="hero">
+  <view class="hero-title">新人成长中心</view>
+  <view class="hero-sub">文化 → 制度 → 知识 → 考试 → 入职资料</view>
+</view>
+
+<view class="page-pad">
+  <view class="errbox" wx:if="{{error}}">加载失败：{{error}}（请下拉刷新）</view>
+  <!-- 学习进度 -->
+  <view class="card">
+    <view class="row" style="border:none;">
+      <view class="row-main"><view class="row-title">必修完成率</view><view class="row-sub">{{progress.finished_count}}/{{progress.required_total}} 已完成</view></view>
+      <text class="tag tag-green">{{progress.completion_rate}}%</text>
+    </view>
+    <view class="progress"><view class="progress-in" style="width:{{progress.completion_rate}}%"></view></view>
+  </view>
+
+  <!-- 四大模块 -->
+  <view class="card">
+    <view class="section-title"><text class="bar"></text>学习路径</view>
+    <view class="grid">
+      <view class="grid-item" bindtap="go" data-url="/pages/onboarding/list?type=culture"><view class="grid-icon" style="background:var(--g-pink)">🏛️</view><view class="grid-label">企业文化</view></view>
+      <view class="grid-item" bindtap="go" data-url="/pages/onboarding/list?type=regulation"><view class="grid-icon" style="background:var(--g-blue)">📋</view><view class="grid-label">公司制度</view></view>
+      <view class="grid-item" bindtap="go" data-url="/pages/onboarding/list?type=knowledge"><view class="grid-icon" style="background:var(--g-green)">📚</view><view class="grid-label">财税知识</view></view>
+      <view class="grid-item" bindtap="go" data-url="/pages/onboarding/exam"><view class="grid-icon" style="background:var(--g-orange)">📝</view><view class="grid-label">入职考试</view></view>
+      <view class="grid-item" bindtap="go" data-url="/pages/onboarding/task"><view class="grid-icon" style="background:var(--g-purple)">✅</view><view class="grid-label">我的任务</view></view>
+      <view class="grid-item" bindtap="go" data-url="/pages/onboarding/detail?type=profile"><view class="grid-icon" style="background:var(--g-red)">🪪</view><view class="grid-label">入职资料</view></view>
+    </view>
+  </view>
+</view>

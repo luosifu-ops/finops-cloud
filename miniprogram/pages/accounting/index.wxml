@@ -1,0 +1,22 @@
+<!-- 会计做账 -->
+<view class="page-pad">
+  <view class="errbox" wx:if="{{error}}">纳税申报加载失败：{{error}}（请下拉刷新）</view>
+  <view class="stat-grid">
+    <view class="stat"><view class="stat-in" style="background:var(--g-blue)"><view class="stat-label">做账任务</view><view class="stat-num">{{stat.total}}</view></view></view>
+    <view class="stat"><view class="stat-in" style="background:var(--g-green)"><view class="stat-label">已完成</view><view class="stat-num">{{stat.done}}</view></view></view>
+    <view class="stat"><view class="stat-in" style="background:var(--g-red)"><view class="stat-label">逾期</view><view class="stat-num">{{stat.overdue}}</view></view></view>
+    <view class="stat"><view class="stat-in" style="background:var(--g-gold)"><view class="stat-label">待申报</view><view class="stat-num">{{stat.pending}}</view></view></view>
+  </view>
+
+  <view class="section-title"><text class="bar"></text>月度做账任务</view>
+  <view class="card" wx:for="{{tasks}}" wx:key="id" bindtap="open" data-id="{{item.id}}">
+    <view class="row" style="border:none;">
+      <view class="row-main">
+        <view class="row-title">{{item.client_name || '客户'}}</view>
+        <view class="row-sub">{{item.period}} · 会计 {{item.accountant_name || '—'}} · 截止 {{item.deadline || '—'}}</view>
+      </view>
+      <text class="tag {{item.is_overdue?'tag-orange':(item.status==='DONE'?'tag-green':'tag-blue')}}">{{item.status_name}}{{item.is_overdue?' · 逾期':''}}</text>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{!tasks.length}}">暂无做账任务</view>
+</view>

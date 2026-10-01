@@ -1,0 +1,56 @@
+<!-- 审批发起中心 -->
+<view class="page-pad">
+  <view class="hero">
+    <view class="hero-title">审批发起</view>
+    <view class="hero-sub">加班 / 出差 / 采购 / 用印，一键提交</view>
+  </view>
+
+  <view class="seg" style="margin:6rpx 0 10rpx;">
+    <view class="seg-item {{type==='OVERTIME'?'seg-on':''}}" data-key="OVERTIME" bindtap="switchType">加班</view>
+    <view class="seg-item {{type==='TRAVEL'?'seg-on':''}}" data-key="TRAVEL" bindtap="switchType">出差</view>
+    <view class="seg-item {{type==='PURCHASE'?'seg-on':''}}" data-key="PURCHASE" bindtap="switchType">采购</view>
+    <view class="seg-item {{type==='SEAL'?'seg-on':''}}" data-key="SEAL" bindtap="switchType">用印</view>
+  </view>
+
+  <view class="card">
+    <!-- 加班 -->
+    <block wx:if="{{type==='OVERTIME'}}">
+      <view class="field"><view class="field-label">开始日期</view><picker mode="date" value="{{form.start_at}}" bindchange="onStart"><view class="input">{{form.start_at||'请选择'}}</view></picker></view>
+      <view class="field"><view class="field-label">结束日期</view><picker mode="date" value="{{form.end_at}}" bindchange="onEnd"><view class="input">{{form.end_at||'请选择'}}</view></picker></view>
+      <view class="field"><view class="field-label">加班时长（小时）</view><input class="input" type="digit" placeholder="如 8" value="{{form.hours}}" bindinput="onHours" /></view>
+      <view class="field"><view class="field-label">补偿方式</view><picker mode="selector" range="{{compensate}}" range-key="label" value="{{form.compensateIndex}}" bindchange="onComp"><view class="input">{{compensate[form.compensateIndex].label}} ▾</view></picker></view>
+      <view class="field"><view class="field-label">事由</view><textarea class="input" placeholder="请填写事由" value="{{form.reason}}" bindinput="onReason" /></view>
+    </block>
+
+    <!-- 出差 -->
+    <block wx:if="{{type==='TRAVEL'}}">
+      <view class="field"><view class="field-label">目的地</view><input class="input" placeholder="如 上海" value="{{form.destination}}" bindinput="onDest" /></view>
+      <view class="field"><view class="field-label">开始日期</view><picker mode="date" value="{{form.start_at}}" bindchange="onStart"><view class="input">{{form.start_at||'请选择'}}</view></picker></view>
+      <view class="field"><view class="field-label">结束日期</view><picker mode="date" value="{{form.end_at}}" bindchange="onEnd"><view class="input">{{form.end_at||'请选择'}}</view></picker></view>
+      <view class="field"><view class="field-label">天数</view><input class="input" type="digit" placeholder="如 2" value="{{form.days}}" bindinput="onDays" /></view>
+      <view class="field"><view class="field-label">预计费用（元）</view><input class="input" type="digit" placeholder="如 2000" value="{{form.budget}}" bindinput="onBudget" /></view>
+      <view class="field"><view class="field-label">事由</view><textarea class="input" placeholder="请填写事由" value="{{form.reason}}" bindinput="onReason" /></view>
+    </block>
+
+    <!-- 采购 -->
+    <block wx:if="{{type==='PURCHASE'}}">
+      <view class="field"><view class="field-label">物品名称</view><input class="input" placeholder="如 笔记本" value="{{form.item_name}}" bindinput="onItem" /></view>
+      <view class="field"><view class="field-label">规格</view><input class="input" placeholder="选填" value="{{form.spec}}" bindinput="onSpec" /></view>
+      <view class="field"><view class="field-label">数量</view><input class="input" type="digit" placeholder="如 1" value="{{form.quantity}}" bindinput="onQty" /></view>
+      <view class="field"><view class="field-label">金额（元）</view><input class="input" type="digit" placeholder="如 5000" value="{{form.amount}}" bindinput="onAmount" /></view>
+      <view class="field"><view class="field-label">用途</view><input class="input" placeholder="如 办公" value="{{form.purpose}}" bindinput="onPurpose" /></view>
+      <view class="field"><view class="field-label">建议供应商</view><input class="input" placeholder="选填" value="{{form.supplier}}" bindinput="onSupplier" /></view>
+    </block>
+
+    <!-- 用印 -->
+    <block wx:if="{{type==='SEAL'}}">
+      <view class="field"><view class="field-label">用印类型</view><picker mode="selector" range="{{seal}}" range-key="label" value="{{form.sealIndex}}" bindchange="onSeal"><view class="input">{{seal[form.sealIndex].label}} ▾</view></picker></view>
+      <view class="field"><view class="field-label">用印文件</view><input class="input" placeholder="如 服务合同" value="{{form.doc_name}}" bindinput="onDoc" /></view>
+      <view class="field"><view class="field-label">用印日期</view><picker mode="date" value="{{form.use_date}}" bindchange="onUseDate"><view class="input">{{form.use_date||'请选择'}}</view></picker></view>
+      <view class="field"><view class="field-label">事由</view><textarea class="input" placeholder="请填写事由" value="{{form.reason}}" bindinput="onReason" /></view>
+    </block>
+
+    <view class="btn btn-orange btn-block" bindtap="submit" wx:if="{{!submitting}}">提交申请</view>
+    <view class="btn btn-orange btn-block" disabled wx:else>提交中…</view>
+  </view>
+</view>

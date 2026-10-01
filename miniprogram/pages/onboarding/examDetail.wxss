@@ -1,0 +1,5 @@
+.opt { display:flex; align-items:center; padding:20rpx 22rpx; margin:14rpx 0; border-radius:16rpx; background:#F7F8FC; font-size:28rpx; }
+.opt-on { background:var(--g-green); color:#fff; font-weight:600; }
+.opt-key { width:44rpx; height:44rpx; border-radius:50%; background:#fff; color:var(--brand); display:flex; align-items:center; justify-content:center; font-weight:700; margin-right:18rpx; }
+.opt-on .opt-key { background:rgba(255,255,255,.3); color:#fff; }
+.opt-text { flex:1; }

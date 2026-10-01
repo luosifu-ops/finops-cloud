@@ -1,0 +1,31 @@
+<!-- 我的工资条 -->
+<view class="page-pad">
+  <view class="hero">
+    <view class="hero-title">我的工资条</view>
+    <view class="hero-sub">底薪 + 提成 + 奖金 − 扣款，自动核算实发</view>
+  </view>
+
+  <view class="card" wx:for="{{list}}" wx:key="id">
+    <view class="row" style="border:none;padding-top:0;">
+      <view class="row-main">
+        <view class="row-title">{{item.month}} 工资</view>
+        <view class="row-sub">{{item.settled ? '已发放' : '待发放'}} · {{item.commission_rule || '默认提成规则'}}</view>
+      </view>
+      <view style="text-align:right;">
+        <view style="font-size:42rpx;font-weight:800;color:var(--brand);">¥{{item.total}}</view>
+        <view style="font-size:22rpx;color:var(--sub);margin-top:4rpx;">实发工资</view>
+      </view>
+    </view>
+
+    <view class="bd">
+      <view class="bd-col"><text class="bd-k">底薪</text><text class="bd-v">¥{{item.base_salary}}</text></view>
+      <view class="bd-col"><text class="bd-k">业绩</text><text class="bd-v">¥{{item.performance}}</text></view>
+      <view class="bd-col"><text class="bd-k">提成</text><text class="bd-v">¥{{item.commission}}</text></view>
+      <view class="bd-col"><text class="bd-k">奖金</text><text class="bd-v">¥{{item.bonus}}</text></view>
+      <view class="bd-col"><text class="bd-k">扣款</text><text class="bd-v" style="color:var(--c-red);">-¥{{item.deduction}}</text></view>
+    </view>
+    <view class="remark" wx:if="{{item.remark}}">备注：{{item.remark}}</view>
+  </view>
+
+  <view class="empty" wx:if="{{!list.length}}">暂无工资条记录</view>
+</view>

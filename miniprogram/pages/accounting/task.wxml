@@ -1,0 +1,33 @@
+<!-- 做账任务详情 -->
+<view class="page-pad">
+  <view class="card" wx:if="{{task.id}}">
+    <view class="row-title" style="font-size:36rpx;">{{task.client_name || '客户'}} <text class="tag {{task.is_overdue?'tag-orange':(task.status==='DONE'?'tag-green':'tag-blue')}}" style="margin-left:10rpx;">{{task.status_name}}</text></view>
+    <view class="row" style="border:none;"><view class="row-main"><view class="row-title">所属期间</view></view><text>{{task.period}}</text></view>
+    <view class="row" style="border:none;"><border:none/><view class="row-main"><view class="row-title">申报截止</view></view><text>{{task.deadline || '—'}}{{task.is_overdue?' (逾期)':''}}</text></view>
+    <view class="row" style="border:none;"><view class="row-main"><view class="row-title">收票</view></view><text>{{task.doc_received_at || '—'}}</text></view>
+    <view class="row" style="border:none;"><view class="row-main"><view class="row-title">做账</view></view><text>{{task.voucher_done_at || '—'}}</text></view>
+    <view class="row" style="border:none;"><view class="row-main"><view class="row-title">申报</view></view><text>{{task.declared_at || '—'}}</text></view>
+  </view>
+
+  <view class="stat-grid">
+    <view class="stat"><view class="stat-in" style="background:var(--g-blue)"><view class="stat-label">收入</view><view class="stat-num">{{task.income||0}}</view></view></view>
+    <view class="stat"><view class="stat-in" style="background:var(--g-orange)"><view class="stat-label">成本</view><view class="stat-num">{{task.cost||0}}</view></view></view>
+    <view class="stat"><view class="stat-in" style="background:var(--g-green)"><view class="stat-label">利润</view><view class="stat-num">{{task.profit||0}}</view></view></view>
+    <view class="stat"><view class="stat-in" style="background:var(--g-red)"><view class="stat-label">税额</view><view class="stat-num">{{task.total_tax||0}}</view></view></view>
+  </view>
+
+  <view class="section-title"><text class="bar"></text>做账节点</view>
+  <view class="card" wx:for="{{steps}}" wx:key="id">
+    <view class="row" style="border:none;">
+      <view class="row-main">
+        <view class="row-title">{{item.step_name}}</view>
+        <view class="row-sub">{{item.operator_name || '未操作'}} · {{item.finished_at ? item.finished_at : '待处理'}}</view>
+      </view>
+      <view style="display:flex;align-items:center;">
+        <text class="tag {{item.status==='DONE'?'tag-green':'tag-gray'}}" style="margin-right:14rpx;">{{item.status_name}}</text>
+        <view class="btn btn-green" style="padding:12rpx 28rpx;font-size:24rpx;" wx:if="{{item.status!=='DONE'}}" bindtap="advance" data-step="{{item.step}}">完成</view>
+      </view>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{!steps.length}}">暂无节点</view>
+</view>

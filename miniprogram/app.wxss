@@ -1,0 +1,173 @@
+/* ========== 鲜艳亮丽主题 ========== */
+page {
+  --brand: #FF5C8A;
+  --brand-2: #FF8E53;
+  --c-red: #FF6B6B;
+  --c-orange: #FF9F43;
+  --c-yellow: #FECA57;
+  --c-green: #1DD1A1;
+  --c-blue: #54A0FF;
+  --c-purple: #A55EEA;
+  --c-pink: #FF6BCB;
+  --g-pink: linear-gradient(135deg, #FF6B9D, #FF8FB1);
+  --g-orange: linear-gradient(135deg, #FF9F43, #FFB86C);
+  --g-blue: linear-gradient(135deg, #54A0FF, #74B9FF);
+  --g-green: linear-gradient(135deg, #1DD1A1, #48DBAF);
+  --g-purple: linear-gradient(135deg, #A55EEA, #C77DFF);
+  --g-red: linear-gradient(135deg, #FF6B6B, #FF8E72);
+  --g-gold: linear-gradient(135deg, #FECA57, #FFB86C);
+  --ink: #2B2D42;
+  --sub: #8A8FA3;
+  --bg: #F7F8FC;
+  background: var(--bg);
+  font-family: -apple-system, "PingFang SC", "Helvetica Neue", Helvetica, sans-serif;
+  color: var(--ink);
+}
+
+view, text { box-sizing: border-box; }
+
+/* 通用容器 */
+.page-pad { padding: 24rpx 24rpx 48rpx; }
+
+/* 顶部大标题区（渐变） */
+.hero {
+  background: linear-gradient(135deg, #FF6B9D 0%, #FF8E53 100%);
+  padding: 56rpx 36rpx 64rpx;
+  border-radius: 0 0 36rpx 36rpx;
+  color: #fff;
+}
+.hero-title { font-size: 44rpx; font-weight: 700; letter-spacing: 1rpx; }
+.hero-sub { font-size: 26rpx; opacity: .9; margin-top: 10rpx; }
+.hero-row { display: flex; align-items: center; justify-content: space-between; margin-top: 8rpx; }
+
+/* 白色卡片 */
+.card {
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 28rpx;
+  margin: 20rpx 0;
+  box-shadow: 0 8rpx 30rpx rgba(120, 120, 160, .08);
+}
+
+/* 统计卡片（彩色） */
+.stat-grid { display: flex; flex-wrap: wrap; }
+.stat {
+  width: 50%;
+  padding: 10rpx 12rpx;
+}
+.stat-in {
+  border-radius: 22rpx;
+  padding: 26rpx 24rpx;
+  color: #fff;
+  box-shadow: 0 10rpx 24rpx rgba(120,120,160,.12);
+}
+.stat-label { font-size: 24rpx; opacity: .92; }
+.stat-num { font-size: 46rpx; font-weight: 800; margin-top: 10rpx; }
+.stat-unit { font-size: 24rpx; font-weight: 500; margin-left: 6rpx; }
+
+/* 圆角彩色图标块 */
+.icon-badge {
+  width: 84rpx; height: 84rpx; border-radius: 22rpx;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 44rpx; color: #fff;
+}
+.badge-row { display: flex; align-items: center; }
+.badge-text { margin-left: 20rpx; }
+.badge-text .t { font-size: 30rpx; font-weight: 600; }
+.badge-text .s { font-size: 24rpx; color: var(--sub); margin-top: 4rpx; }
+
+/* 列表项 */
+.row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 24rpx 0; border-bottom: 1rpx solid #F0F1F6;
+}
+.row:last-child { border-bottom: none; }
+.row-main { flex: 1; min-width: 0; }
+.row-title { font-size: 30rpx; font-weight: 600; }
+.row-sub { font-size: 24rpx; color: var(--sub); margin-top: 6rpx; }
+
+/* 标签 */
+.tag {
+  font-size: 22rpx; padding: 4rpx 16rpx; border-radius: 999rpx;
+  background: #FFF0F4; color: var(--brand); font-weight: 600;
+}
+.tag-blue { background: #EAF3FF; color: #2E7BE5; }
+.tag-green { background: #E6FBF4; color: #10A37F; }
+.tag-orange { background: #FFF3E6; color: #E8820C; }
+.tag-gray { background: #F1F2F7; color: #8A8FA3; }
+
+/* 按钮 */
+.btn {
+  border-radius: 999rpx; padding: 22rpx 0; text-align: center;
+  font-size: 30rpx; font-weight: 700; color: #fff; border: none;
+  box-shadow: 0 10rpx 24rpx rgba(255,92,138,.28);
+}
+.btn-pink { background: var(--g-pink); }
+.btn-orange { background: var(--g-orange); }
+.btn-blue { background: var(--g-blue); }
+.btn-green { background: var(--g-green); }
+.btn-purple { background: var(--g-purple); }
+.btn-ghost { background: #fff; color: var(--brand); border: 2rpx solid #FFD6E2; box-shadow: none; }
+.btn-block { width: 100%; }
+.btn[disabled] { opacity: .5; }
+
+/* 区块标题 */
+.section-title { font-size: 32rpx; font-weight: 700; margin: 30rpx 6rpx 6rpx; }
+.section-title .bar {
+  display: inline-block; width: 10rpx; height: 30rpx; border-radius: 6rpx;
+  background: var(--brand); margin-right: 14rpx; vertical-align: -3rpx;
+}
+
+/* 九宫格入口 */
+.grid { display: flex; flex-wrap: wrap; }
+.grid-item { width: 25%; padding: 18rpx 0; display: flex; flex-direction: column; align-items: center; }
+.grid-icon {
+  width: 96rpx; height: 96rpx; border-radius: 28rpx; display: flex;
+  align-items: center; justify-content: center; font-size: 48rpx; color: #fff;
+}
+.grid-label { font-size: 24rpx; color: var(--ink); margin-top: 14rpx; }
+
+/* 进度条 */
+.progress { height: 16rpx; border-radius: 999rpx; background: #EEF0F6; overflow: hidden; }
+.progress-in { height: 100%; border-radius: 999rpx; background: var(--g-green); }
+
+/* 表单 */
+.field { margin: 22rpx 0; }
+.field-label { font-size: 26rpx; color: var(--sub); margin-bottom: 10rpx; }
+.input {
+  background: #fff; border-radius: 18rpx; padding: 22rpx 24rpx;
+  font-size: 30rpx; box-shadow: 0 4rpx 16rpx rgba(120,120,160,.06);
+}
+textarea.input { width: 100%; height: 200rpx; }
+
+/* 空态 */
+.empty { text-align: center; color: var(--sub); padding: 80rpx 0; font-size: 26rpx; }
+
+/* 加载失败态（可见报错，替代静默空白） */
+.errbox {
+  margin: 24rpx 0; padding: 28rpx; border-radius: 18rpx;
+  background: #FFF1F0; color: #D4380D; font-size: 26rpx; line-height: 1.6;
+  border: 1rpx solid #FFCCC7;
+}
+
+/* 诊断条（显示接口状态码/条数，便于定位空白） */
+.metabar {
+  margin: 8rpx 0 18rpx; padding: 16rpx 22rpx; border-radius: 14rpx;
+  background: #EEF6FF; color: #1D6FD9; font-size: 24rpx; line-height: 1.5;
+  border: 1rpx solid #CDE3FB;
+}
+
+/* 分段 tab */
+.seg { display: flex; background: #fff; border-radius: 999rpx; padding: 6rpx; box-shadow: 0 4rpx 16rpx rgba(120,120,160,.08); }
+.seg-item { flex: 1; text-align: center; padding: 16rpx 0; font-size: 27rpx; color: var(--sub); border-radius: 999rpx; }
+.seg-on { background: var(--g-pink); color: #fff; font-weight: 700; }
+
+/* 浮动提示点 */
+.dot { width: 18rpx; height: 18rpx; border-radius: 50%; background: var(--c-red); display: inline-block; }
+
+/* 明细网格（工资条/考勤/合同/外勤/增值复用） */
+.bd { display: flex; flex-wrap: wrap; margin-top: 18rpx; padding-top: 18rpx; border-top: 1rpx dashed #EEE; }
+.bd-col { width: 20%; display: flex; flex-direction: column; align-items: center; }
+.bd-k { font-size: 22rpx; color: var(--sub); }
+.bd-v { font-size: 26rpx; font-weight: 700; margin-top: 6rpx; color: var(--ink); }
+.remark { font-size: 23rpx; color: var(--sub); margin-top: 14rpx; }

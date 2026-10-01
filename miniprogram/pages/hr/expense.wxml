@@ -1,0 +1,59 @@
+<!-- 报销申请 -->
+<view class="page-pad">
+  <view class="hero">
+    <view class="hero-title">报销申请</view>
+    <view class="hero-sub">费用报销与审批进度</view>
+  </view>
+
+  <view class="card" wx:for="{{list}}" wx:key="id">
+    <view class="row" style="border:none;padding-top:0;">
+      <view class="row-main">
+        <view class="row-title">{{item.category_name}}</view>
+        <view class="row-sub">{{item.happened_at}} · {{item.reason || '—'}}</view>
+      </view>
+      <view style="text-align:right;">
+        <view style="font-size:38rpx;font-weight:800;color:var(--brand);">¥{{item.amount}}</view>
+        <view class="tag {{item.status === 'APPROVED' || item.status === 'PAID' ? 'tag-green' : (item.status === 'PENDING' ? 'tag-orange' : 'tag-gray')}}" style="margin-top:6rpx;">{{item.status_name}}</view>
+      </view>
+    </view>
+    <view class="remark" wx:if="{{item.invoice_no}}">发票号：{{item.invoice_no}}</view>
+  </view>
+
+  <view class="empty" wx:if="{{!list.length && !showForm}}">暂无报销记录</view>
+
+  <!-- 发起报销表单 -->
+  <view wx:if="{{showForm}}">
+    <view class="section-title"><text class="bar"></text>发起报销</view>
+    <view class="card">
+      <view class="field">
+        <view class="field-label">费用类型</view>
+        <picker mode="selector" range="{{cats}}" range-key="label" value="{{form.catIndex}}" bindchange="onCat">
+          <view class="input">{{cats[form.catIndex].label}} ▾</view>
+        </picker>
+      </view>
+      <view class="field">
+        <view class="field-label">发生日期</view>
+        <picker mode="date" value="{{form.happened_at}}" bindchange="onDate">
+          <view class="input">{{form.happened_at || '请选择发生日期'}}</view>
+        </picker>
+      </view>
+      <view class="field">
+        <view class="field-label">报销金额（元）</view>
+        <input class="input" type="digit" placeholder="如 100.00" value="{{form.amount}}" bindinput="onAmount" />
+      </view>
+      <view class="field">
+        <view class="field-label">发票号码</view>
+        <input class="input" placeholder="选填" value="{{form.invoice_no}}" bindinput="onInvoice" />
+      </view>
+      <view class="field">
+        <view class="field-label">费用事由</view>
+        <textarea class="input" placeholder="请填写事由" value="{{form.reason}}" bindinput="onReason" />
+      </view>
+      <view class="btn btn-purple btn-block" bindtap="submit" wx:if="{{!submitting}}">提交申请</view>
+      <view class="btn btn-purple btn-block" disabled wx:else>提交中…</view>
+    </view>
+  </view>
+
+  <view style="height:140rpx;"></view>
+  <view class="fab" bindtap="toggleForm">{{showForm ? '收起' : '发起报销'}}</view>
+</view>

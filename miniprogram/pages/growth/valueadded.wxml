@@ -1,0 +1,37 @@
+<!-- 增值业务 -->
+<view class="page-pad">
+  <view class="hero">
+    <view class="hero-title">增值业务</view>
+    <view class="hero-sub">增值项目与利润统计</view>
+  </view>
+
+  <view class="card">
+    <view class="row" style="border:none;padding-top:0;">
+      <view class="row-main">
+        <view class="row-title">累计利润</view>
+        <view class="row-sub">所有增值业务项目合计</view>
+      </view>
+      <view style="text-align:right;">
+        <view style="font-size:42rpx;font-weight:800;color:var(--brand);">¥{{totalProfit}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="card" wx:for="{{list}}" wx:key="id">
+    <view class="row" style="border:none;padding-top:0;">
+      <view class="row-main">
+        <view class="row-title">{{item.name}}</view>
+        <view class="row-sub">{{item.customer_name}} · {{item.project_type || ''}}</view>
+      </view>
+      <view class="tag {{item.status === 'DONE' ? 'tag-green' : (item.status === 'DOING' ? 'tag-orange' : 'tag-gray')}}">{{item.status_label}}</view>
+    </view>
+    <view class="bd">
+      <view class="bd-col"><text class="bd-k">金额</text><text class="bd-v">¥{{item.amount}}</text></view>
+      <view class="bd-col"><text class="bd-k">成本</text><text class="bd-v">¥{{item.cost}}</text></view>
+      <view class="bd-col"><text class="bd-k">利润</text><text class="bd-v" style="color:var(--c-green);">¥{{item.profit}}</text></view>
+      <view class="bd-col"><text class="bd-k">负责人</text><text class="bd-v" style="font-size:22rpx;">{{item.owner_name || '—'}}</text></view>
+    </view>
+  </view>
+
+  <view class="empty" wx:if="{{!list.length}}">暂无增值业务</view>
+</view>

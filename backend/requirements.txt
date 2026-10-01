@@ -1,0 +1,18 @@
+asgiref==3.12.1
+Django>=5.2,<6.2
+django-cors-headers==4.9.0
+djangorestframework==3.18.0
+djangorestframework_simplejwt==5.5.1
+gunicorn==23.0.0
+pillow==12.2.0
+PyJWT==2.13.0
+python-dotenv==1.2.2
+PyYAML==6.0.3
+requests==2.33.0
+requests-oauthlib==2.0.0
+sqlparse==0.6.0
+urllib3==2.7.0
+# --- 生产部署依赖（备案/自有服务器用，沙箱可不装） ---
+dj-database-url>=2.0          # DATABASE_URL 解析（settings.py / settings_prod.py 使用）
+psycopg2-binary>=2.9          # PostgreSQL 驱动（DATABASE_URL 切换生产库）
+whitenoise>=6.6.0             # 生产静态文件服务（config/settings_prod.py 启用）

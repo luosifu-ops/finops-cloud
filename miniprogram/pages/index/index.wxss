@@ -1,0 +1,2 @@
+/* 驾驶舱页：样式主要复用全局主题类 */
+.hero-sub { margin-top: 12rpx; }

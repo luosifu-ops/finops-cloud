@@ -1,0 +1,64 @@
+<!-- 我的请假 -->
+<view class="page-pad">
+  <view class="hero">
+    <view class="hero-title">我的请假</view>
+    <view class="hero-sub">请假记录与审批进度</view>
+  </view>
+
+  <view class="card" wx:for="{{list}}" wx:key="id">
+    <view class="row" style="border:none;padding-top:0;">
+      <view class="row-main">
+        <view class="row-title">{{item.leave_type_name}}</view>
+        <view class="row-sub">{{item.start_at}} 至 {{item.end_at}} · 共{{item.days}}天</view>
+      </view>
+      <view class="tag {{item.status === 'APPROVED' ? 'tag-green' : (item.status === 'PENDING' ? 'tag-orange' : 'tag-gray')}}">{{item.status_name}}</view>
+    </view>
+    <view class="row">
+      <view class="row-main">
+        <view class="row-sub">请假事由</view>
+        <view class="row-title" style="font-size:27rpx;font-weight:500;">{{item.reason || '—'}}</view>
+      </view>
+    </view>
+    <view class="remark" wx:if="{{item.approver_name}}">审批人：{{item.approver_name}}</view>
+  </view>
+
+  <view class="empty" wx:if="{{!list.length && !showForm}}">暂无请假记录</view>
+
+  <!-- 发起请假表单 -->
+  <view wx:if="{{showForm}}">
+    <view class="section-title"><text class="bar"></text>发起请假</view>
+    <view class="card">
+      <view class="field">
+        <view class="field-label">请假类型</view>
+        <picker mode="selector" range="{{types}}" range-key="label" value="{{form.typeIndex}}" bindchange="onType">
+          <view class="input">{{types[form.typeIndex].label}} ▾</view>
+        </picker>
+      </view>
+      <view class="field">
+        <view class="field-label">开始日期</view>
+        <picker mode="date" value="{{form.start_at}}" bindchange="onStart">
+          <view class="input">{{form.start_at || '请选择开始日期'}}</view>
+        </picker>
+      </view>
+      <view class="field">
+        <view class="field-label">结束日期</view>
+        <picker mode="date" value="{{form.end_at}}" bindchange="onEnd">
+          <view class="input">{{form.end_at || '请选择结束日期'}}</view>
+        </picker>
+      </view>
+      <view class="field">
+        <view class="field-label">请假天数</view>
+        <input class="input" type="digit" placeholder="如 2.0" value="{{form.days}}" bindinput="onDays" />
+      </view>
+      <view class="field">
+        <view class="field-label">请假事由</view>
+        <textarea class="input" placeholder="请填写事由" value="{{form.reason}}" bindinput="onReason" />
+      </view>
+      <view class="btn btn-pink btn-block" bindtap="submit" wx:if="{{!submitting}}">提交申请</view>
+      <view class="btn btn-pink btn-block" disabled wx:else>提交中…</view>
+    </view>
+  </view>
+
+  <view style="height:140rpx;"></view>
+  <view class="fab" bindtap="toggleForm">{{showForm ? '收起' : '发起请假'}}</view>
+</view>

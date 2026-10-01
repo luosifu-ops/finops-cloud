@@ -1,0 +1,6 @@
+[
+  {"id": 1, "title": "财税小白入门：什么是代理记账", "category": "财税知识", "cover": "", "type": "file", "src": "https://www.w3schools.com/html/mov_bbb.mp4", "duration": "12:30", "desc": "面向新人的财税基础概念讲解（演示视频，请替换为自有课程）。"},
+  {"id": 2, "title": "电销开场白设计与异议处理", "category": "销售技巧", "cover": "", "type": "file", "src": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", "duration": "08:15", "desc": "高转化电销话术拆解（演示视频）。"},
+  {"id": 3, "title": "云账房实操：一键生成凭证", "category": "软件操作", "cover": "", "type": "file", "src": "https://www.w3schools.com/html/mov_bbb.mp4", "duration": "15:40", "desc": "云账房做账流程演示（演示视频）。"},
+  {"id": 4, "title": "合规红线：这些账绝对不能做", "category": "合规风控", "cover": "", "type": "file", "src": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", "duration": "10:05", "desc": "财税合规风险警示（演示视频）。"}
+]

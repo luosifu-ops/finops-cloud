@@ -1,0 +1,55 @@
+<!-- 我的线索 -->
+<view class="page-pad">
+  <view class="hero">
+    <view class="hero-title">我的线索</view>
+    <view class="hero-sub">线索跟进与转化进度</view>
+  </view>
+
+  <view class="card" wx:for="{{list}}" wx:key="id" bindtap="open" data-id="{{item.id}}">
+    <view class="row" style="border:none;padding-top:0;">
+      <view class="badge-row">
+        <view class="icon-badge" style="background:var(--g-blue);">{{item.lead_name[0]}}</view>
+        <view class="badge-text">
+          <view class="t">{{item.lead_name}} <text class="tag tag-blue">{{item.channel_name || ''}}</text></view>
+          <view class="s">{{item.lead_phone || '—'}} · {{item.stage_label || ''}}</view>
+        </view>
+      </view>
+    </view>
+    <view class="bd">
+      <view class="bd-col"><text class="bd-k">运营</text><text class="bd-v" style="font-size:22rpx;">{{item.ops_owner_name || '—'}}</text></view>
+      <view class="bd-col"><text class="bd-k">成交师</text><text class="bd-v" style="font-size:22rpx;">{{item.closer_name || '—'}}</text></view>
+      <view class="bd-col"><text class="bd-k">转化</text><text class="bd-v" style="color:var(--c-green);">{{item.is_deal ? '已成交' : (item.conversion_rate || 0) + '%'}}</text></view>
+      <view class="bd-col"><text class="bd-k">状态</text><text class="bd-v" style="font-size:22rpx;">{{item.lead_status || '—'}}</text></view>
+    </view>
+    <view class="remark" wx:if="{{item.customer_need}}">客户需求：{{item.customer_need}}</view>
+    <view class="row" style="margin-top:6rpx;">
+      <view class="row-main"></view>
+      <view class="btn btn-blue" style="padding:12rpx 30rpx;font-size:26rpx;" bindtap="call" data-phone="{{item.lead_phone}}">拨打</view>
+    </view>
+  </view>
+
+  <view class="empty" wx:if="{{!list.length}}">暂无线索</view>
+
+  <!-- 客户360详情弹层 -->
+  <view wx:if="{{detail}}" class="mask" bindtap="closeDetail">
+    <view class="sheet" catchtap="">
+      <view class="row" style="border:none;padding-top:0;">
+        <view class="row-main">
+          <view class="row-title">{{detail.lead_name}}</view>
+          <view class="row-sub">{{detail.channel_name}} · {{detail.stage_label}}</view>
+        </view>
+        <view class="tag" bindtap="closeDetail">✕</view>
+      </view>
+      <view class="bd">
+        <view class="bd-col" style="width:50%;"><text class="bd-k">电话</text><text class="bd-v" style="font-size:24rpx;">{{detail.lead_phone}}</text></view>
+        <view class="bd-col" style="width:50%;"><text class="bd-k">意向</text><text class="bd-v" style="font-size:24rpx;">{{detail.lead_intention}}</text></view>
+        <view class="bd-col" style="width:50%;"><text class="bd-k">运营</text><text class="bd-v" style="font-size:24rpx;">{{detail.ops_owner_name}}</text></view>
+        <view class="bd-col" style="width:50%;"><text class="bd-k">成交师</text><text class="bd-v" style="font-size:24rpx;">{{detail.closer_name}}</text></view>
+        <view class="bd-col" style="width:50%;"><text class="bd-k">转化</text><text class="bd-v" style="font-size:24rpx;color:var(--c-green);">{{detail.is_deal ? '已成交' : (detail.conversion_rate||0)+'%'}}</text></view>
+        <view class="bd-col" style="width:50%;"><text class="bd-k">状态</text><text class="bd-v" style="font-size:24rpx;">{{detail.lead_status}}</text></view>
+      </view>
+      <view class="remark">客户需求：{{detail.customer_need || '—'}}</view>
+      <view class="btn btn-blue btn-block" bindtap="call" data-phone="{{detail.lead_phone}}">拨打</view>
+    </view>
+  </view>
+</view>

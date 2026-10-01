@@ -1,0 +1,8 @@
+.bd {
+  display: flex; flex-wrap: wrap; margin-top: 18rpx; padding-top: 18rpx;
+  border-top: 1rpx dashed #EEE;
+}
+.bd-col { width: 20%; display: flex; flex-direction: column; align-items: center; }
+.bd-k { font-size: 22rpx; color: var(--sub); }
+.bd-v { font-size: 26rpx; font-weight: 700; margin-top: 6rpx; color: var(--ink); }
+.remark { font-size: 23rpx; color: var(--sub); margin-top: 14rpx; }

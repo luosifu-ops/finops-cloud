@@ -1,0 +1,7 @@
+/* 复用全局样式 */
+.fab {
+  position: fixed; right: 40rpx; bottom: 60rpx; width: 104rpx; height: 104rpx;
+  border-radius: 50%; background: var(--g-pink); color: #fff; font-size: 56rpx;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 12rpx 30rpx rgba(255,92,138,.4); z-index: 20;
+}

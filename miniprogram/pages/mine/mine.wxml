@@ -1,0 +1,38 @@
+<!-- 我的 -->
+<view class="hero">
+  <view class="badge-row">
+    <view class="icon-badge" style="background:var(--g-purple)">👤</view>
+    <view class="badge-text" style="color:#fff;">
+      <view class="t" style="font-size:36rpx;">{{user.display_name || user.username || '未登录'}}</view>
+      <view class="s">{{user.department_name || ''}} · {{roleName}}</view>
+    </view>
+  </view>
+</view>
+
+<view class="page-pad">
+  <!-- 模块入口 -->
+  <view class="card">
+    <view class="section-title"><text class="bar"></text>全部功能</view>
+    <view class="grid">
+      <view class="grid-item" wx:for="{{entries}}" wx:key="label" bindtap="go" data-url="{{item.url}}">
+        <view class="grid-icon" style="background:{{item.color}}">{{item.icon}}</view>
+        <view class="grid-label">{{item.label}}</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 我的审批 / 汇报 -->
+  <view class="card">
+    <view class="row" bindtap="go" data-url="/pages/approval/list">
+      <view class="row-main"><view class="row-title">待我审批</view><view class="row-sub">{{approvalCount}} 条待处理</view></view>
+      <text class="tag tag-orange" wx:if="{{approvalCount}}">{{approvalCount}}</text>
+      <text wx:else>›</text>
+    </view>
+    <view class="row" bindtap="go" data-url="/pages/report/report">
+      <view class="row-main"><view class="row-title">我的汇报</view><view class="row-sub">日报 / 周报 / 月报</view></view>
+      <text>›</text>
+    </view>
+  </view>
+
+  <view class="btn btn-ghost btn-block" bindtap="logout">退出登录</view>
+</view>

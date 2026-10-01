@@ -1,0 +1,26 @@
+<!-- 运营投放 -->
+<view class="page-pad">
+  <view class="stat-grid">
+    <view class="stat"><view class="stat-in" style="background:var(--g-orange)"><view class="stat-label">累计投放</view><view class="stat-num">¥{{cost}}</view></view></view>
+    <view class="stat"><view class="stat-in" style="background:var(--g-pink)"><view class="stat-label">累计线索</view><view class="stat-num">{{leads}}</view></view></view>
+  </view>
+
+  <view class="btn btn-orange btn-block" bindtap="goStats">查看投放明细数据 ›</view>
+
+  <view class="section-title"><text class="bar"></text>投放平台</view>
+  <view class="card" wx:for="{{platforms}}" wx:key="id">
+    <view class="row" style="border:none;">
+      <view class="row-main"><view class="row-title">{{item.name}}</view><view class="row-sub">{{item.code_name||''}} · {{item.account_count}}个账户</view></view>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{!platforms.length}}">暂无平台</view>
+
+  <view class="section-title"><text class="bar"></text>推广计划</view>
+  <view class="card" wx:for="{{campaigns}}" wx:key="id">
+    <view class="row" style="border:none;">
+      <view class="row-main"><view class="row-title">{{item.name}}</view><view class="row-sub">{{item.platform_name||''}}</view></view>
+      <text class="tag tag-blue">{{item.status||'—'}}</text>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{!campaigns.length}}">暂无计划</view>
+</view>

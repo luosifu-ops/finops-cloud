@@ -1,0 +1,24 @@
+<!-- 公告通知 -->
+<view class="page-pad">
+  <view class="hero">
+    <view class="hero-title">公告通知</view>
+    <view class="hero-sub">{{unread > 0 ? '您有 ' + unread + ' 条未读' : '已全部读完'}}</view>
+  </view>
+
+  <view class="card" wx:for="{{list}}" wx:key="id" bindtap="open" data-id="{{item.id}}">
+    <view class="row" style="border:none;padding-top:0;">
+      <view class="row-main">
+        <view class="row-title">
+          <text wx:if="{{item.pinned}}" class="tag tag-red" style="margin-right:10rpx;">置顶</text>{{item.title}}
+          <text wx:if="{{!item.is_read}}" class="dot" style="margin-left:10rpx;"></text>
+        </view>
+        <view class="row-sub">{{item.publisher_name || ''}} · {{item.created_at}}</view>
+      </view>
+      <view class="tag tag-gray">{{item.category_name}}</view>
+    </view>
+    <view class="remark" wx:if="{{item.content}}">{{item.content}}</view>
+    <view class="remark" wx:if="{{item.read_count}}">已读 {{item.read_count}} 人</view>
+  </view>
+
+  <view class="empty" wx:if="{{!list.length}}">暂无公告</view>
+</view>

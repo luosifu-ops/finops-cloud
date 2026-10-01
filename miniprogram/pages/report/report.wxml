@@ -1,0 +1,61 @@
+<!-- 工作汇报 -->
+<view class="page-pad">
+  <!-- 分段切换 -->
+  <view class="seg">
+    <view class="seg-item {{tab==='daily'?'seg-on':''}}" bindtap="switchTab" data-tab="daily">日报</view>
+    <view class="seg-item {{tab==='weekly'?'seg-on':''}}" bindtap="switchTab" data-tab="weekly">周报</view>
+    <view class="seg-item {{tab==='monthly'?'seg-on':''}}" bindtap="switchTab" data-tab="monthly">月报</view>
+  </view>
+
+  <!-- 写汇报 -->
+  <view class="card">
+    <view class="section-title"><text class="bar"></text>写{{tabName}}</view>
+
+    <!-- 日报字段 -->
+    <block wx:if="{{tab==='daily'}}">
+      <view class="field"><view class="field-label">今日完成</view><textarea class="input" value="{{form.today_done}}" bindinput="onInput" data-k="today_done" placeholder="今天做了什么"/></view>
+      <view class="field"><view class="field-label">今日数据</view><textarea class="input" value="{{form.today_data}}" bindinput="onInput" data-k="today_data" placeholder="关键数据/业绩"/></view>
+      <view class="field"><view class="field-label">遇到的问题</view><textarea class="input" value="{{form.problems}}" bindinput="onInput" data-k="problems" placeholder="卡点、风险"/></view>
+      <view class="field"><view class="field-label">明日计划</view><textarea class="input" value="{{form.tomorrow_plan}}" bindinput="onInput" data-k="tomorrow_plan" placeholder="明天安排"/></view>
+      <view class="field"><view class="field-label">需要协助</view><input class="input" value="{{form.need_help}}" bindinput="onInput" data-k="need_help" placeholder="需要谁/什么支持"/></view>
+      <view class="field"><view class="field-label">备注</view><input class="input" value="{{form.remark}}" bindinput="onInput" data-k="remark" placeholder="其他说明"/></view>
+    </block>
+
+    <!-- 周报字段 -->
+    <block wx:if="{{tab==='weekly'}}">
+      <view class="field"><view class="field-label">开始日期</view><input class="input" value="{{form.start_date}}" bindinput="onInput" data-k="start_date" placeholder="2026-09-01"/></view>
+      <view class="field"><view class="field-label">结束日期</view><input class="input" value="{{form.end_date}}" bindinput="onInput" data-k="end_date" placeholder="2026-09-07"/></view>
+      <view class="field"><view class="field-label">本周总结</view><textarea class="input" value="{{form.summary}}" bindinput="onInput" data-k="summary" placeholder="整体复盘"/></view>
+      <view class="field"><view class="field-label">本周数据</view><textarea class="input" value="{{form.data}}" bindinput="onInput" data-k="data" placeholder="关键指标"/></view>
+      <view class="field"><view class="field-label">下周计划</view><textarea class="input" value="{{form.next_plan}}" bindinput="onInput" data-k="next_plan" placeholder="下周目标"/></view>
+      <view class="field"><view class="field-label">问题与风险</view><textarea class="input" value="{{form.problems}}" bindinput="onInput" data-k="problems" placeholder="卡点"/></view>
+    </block>
+
+    <!-- 月报字段 -->
+    <block wx:if="{{tab==='monthly'}}">
+      <view class="field"><view class="field-label">本月总结</view><textarea class="input" value="{{form.summary}}" bindinput="onInput" data-k="summary" placeholder="整体复盘"/></view>
+      <view class="field"><view class="field-label">本月数据</view><textarea class="input" value="{{form.data}}" bindinput="onInput" data-k="data" placeholder="关键指标"/></view>
+      <view class="field"><view class="field-label">业绩</view><input class="input" value="{{form.performance}}" bindinput="onInput" data-k="performance" placeholder="如 完成120%"/></view>
+      <view class="field"><view class="field-label">目标</view><input class="input" value="{{form.target}}" bindinput="onInput" data-k="target" placeholder="下月目标"/></view>
+      <view class="field"><view class="field-label">下月计划</view><textarea class="input" value="{{form.next_plan}}" bindinput="onInput" data-k="next_plan" placeholder="下月安排"/></view>
+      <view class="field"><view class="field-label">自我复盘</view><textarea class="input" value="{{form.self_review}}" bindinput="onInput" data-k="self_review" placeholder="得失反思"/></view>
+    </block>
+
+    <view class="row" style="border:none;padding-top:8rpx;">
+      <view class="btn btn-ghost btn-block" style="width:48%;" bindtap="saveDraft">存草稿</view>
+      <view class="btn btn-pink btn-block" style="width:48%;" bindtap="submitReport">提交汇报</view>
+    </view>
+  </view>
+
+  <!-- 我的汇报 -->
+  <view class="section-title"><text class="bar"></text>我的{{tabName}}</view>
+  <view class="card" wx:for="{{list}}" wx:key="id">
+    <view class="row" style="border:none;">
+      <view class="row-main">
+        <view class="row-title">{{item.title || item.date || item.month || item.week || '汇报'}}</view>
+        <view class="row-sub">{{item.department_name || ''}} · {{item.status_name || '草稿'}} · 评分 {{item.score || '-'}}</view>
+      </view>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{!list.length}}">还没有{{tabName}}记录，写一条吧</view>
+</view>

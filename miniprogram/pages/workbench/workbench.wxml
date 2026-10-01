@@ -1,0 +1,54 @@
+<view class="hero">
+  <view class="hero-title">工作台</view>
+  <view class="hero-sub">{{date}} · 今日待办一览</view>
+</view>
+
+<view class="page-pad">
+  <view class="errbox" wx:if="{{error}}">工作台加载失败：{{error}}（请下拉刷新）</view>
+  <!-- 考勤打卡 -->
+  <view class="card">
+    <view class="badge-row">
+      <view class="icon-badge g-green">⏰</view>
+      <view class="badge-text">
+        <view class="t">考勤打卡</view>
+        <view class="s">{{today.status || '今日尚未打卡'}}</view>
+      </view>
+    </view>
+    <view style="display:flex;gap:20rpx;margin-top:28rpx">
+      <button class="btn btn-green btn-block" bindtap="checkIn" data-type="IN">上班打卡</button>
+      <button class="btn btn-orange btn-block" bindtap="checkIn" data-type="OUT">下班打卡</button>
+    </view>
+  </view>
+
+  <!-- 待我审批 -->
+  <view class="section-title"><text class="bar"></text>待我审批<text class="dot" wx:if="{{approvals.length}}" style="margin-left:10rpx"></text></view>
+  <view class="card" wx:if="{{approvals.length}}">
+    <view class="row" wx:for="{{approvals}}" wx:key="id" bindtap="openApproval" data-id="{{item.id}}">
+      <view class="row-main">
+        <view class="row-title">{{item.title || item.type}}</view>
+        <view class="row-sub">{{item.applicant_name || ''}} · {{item.created_at}}</view>
+      </view>
+      <view class="tag tag-orange">待审</view>
+    </view>
+  </view>
+  <view class="empty" wx:else>太棒了，没有待审批事项</view>
+
+  <!-- 我的待办 -->
+  <view class="section-title"><text class="bar"></text>我的待办</view>
+  <view class="card">
+    <view class="row" bindtap="goReport">
+      <view class="row-main">
+        <view class="row-title">写今日日报</view>
+        <view class="row-sub">及时沉淀工作，方便主管点评</view>
+      </view>
+      <view class="tag tag-pink">去写</view>
+    </view>
+    <view class="row" bindtap="goOnboard" wx:if="{{onboardLeft > 0}}">
+      <view class="row-main">
+        <view class="row-title">入职任务</view>
+        <view class="row-sub">还有 {{onboardLeft}} 项未完成</view>
+      </view>
+      <view class="tag tag-blue">查看</view>
+    </view>
+  </view>
+</view>

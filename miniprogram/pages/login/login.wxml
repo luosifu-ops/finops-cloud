@@ -1,0 +1,22 @@
+<view class="login-wrap">
+  <view class="login-hero">
+    <view class="logo">💰</view>
+    <view class="app-name">财税企管云</view>
+    <view class="app-slogan">代账公司 · 一体化管理平台</view>
+  </view>
+
+  <view class="login-card">
+    <view class="field">
+      <view class="field-label">账号</view>
+      <input class="input" placeholder="请输入账号" value="{{username}}" bindinput="onUser" />
+    </view>
+    <view class="field">
+      <view class="field-label">密码</view>
+      <input class="input" placeholder="请输入密码" password value="{{password}}" bindinput="onPwd" />
+    </view>
+    <button class="btn btn-pink btn-block" loading="{{loading}}" bindtap="onLogin">登 录</button>
+    <button class="btn btn-green btn-block btn-ghost" style="margin-top:20rpx" bindtap="onWx">微信一键登录</button>
+    <view class="tip">演示账号：admin / admin123</view>
+    <view class="tip" style="opacity:.55;font-size:20rpx;margin-top:8rpx">构建版本 BUILD-20260925-2300 · 本地后端</view>
+  </view>
+</view>

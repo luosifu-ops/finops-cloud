@@ -1,0 +1,32 @@
+<!-- 发起申请 -->
+<view class="page-pad">
+  <view class="seg">
+    <view class="seg-item {{type==='LEAVE'?'seg-on':''}}" bindtap="switchType" data-t="LEAVE">请假</view>
+    <view class="seg-item {{type==='OVERTIME'?'seg-on':''}}" bindtap="switchType" data-t="OVERTIME">加班</view>
+    <view class="seg-item {{type==='TRAVEL'?'seg-on':''}}" bindtap="switchType" data-t="TRAVEL">出差</view>
+    <view class="seg-item {{type==='EXPENSE'?'seg-on':''}}" bindtap="switchType" data-t="EXPENSE">报销</view>
+  </view>
+
+  <view class="card">
+    <view class="section-title"><text class="bar"></text>填写信息</view>
+
+    <picker wx:if="{{type==='LEAVE'}}" mode="selector" range="{{leaveTypes}}" range-key="label" bindchange="onLeaveType">
+      <view class="field"><view class="field-label">请假类型</view><view class="input">{{leaveTypes[leaveIdx].label}}</view></view>
+    </picker>
+    <picker wx:if="{{type==='EXPENSE'}}" mode="selector" range="{{categories}}" range-key="label" bindchange="onCategory">
+      <view class="field"><view class="field-label">报销类别</view><view class="input">{{categories[catIdx].label}}</view></view>
+    </picker>
+
+    <picker wx:if="{{type!=='EXPENSE'}}" mode="date" bindchange="onStart"><view class="field"><view class="field-label">开始日期</view><view class="input">{{startAt || '请选择'}}</view></view></picker>
+    <picker wx:if="{{type!=='EXPENSE'}}" mode="date" bindchange="onEnd"><view class="field"><view class="field-label">结束日期</view><view class="input">{{endAt || '请选择'}}</view></view></picker>
+
+    <view class="field" wx:if="{{type==='LEAVE' || type==='TRAVEL'}}"><view class="field-label">天数</view><input class="input" type="number" value="{{days}}" bindinput="onDays" placeholder="如 1"/></view>
+    <view class="field" wx:if="{{type==='OVERTIME'}}"><view class="field-label">时长(小时)</view><input class="input" type="number" value="{{hours}}" bindinput="onHours" placeholder="如 2"/></view>
+    <view class="field" wx:if="{{type==='TRAVEL'}}"><view class="field-label">目的地</view><input class="input" value="{{destination}}" bindinput="onDest" placeholder="如 上海"/></view>
+    <view class="field" wx:if="{{type==='EXPENSE'}}"><view class="field-label">金额(元)</view><input class="input" type="number" value="{{amount}}" bindinput="onAmount" placeholder="如 500"/></view>
+
+    <view class="field"><view class="field-label">事由</view><textarea class="input" value="{{reason}}" bindinput="onReason" placeholder="说明申请原因"/></view>
+
+    <view class="btn btn-pink btn-block" bindtap="submit">提交审批</view>
+  </view>
+</view>

@@ -1,0 +1,26 @@
+<!-- 外勤任务 -->
+<view class="page-pad">
+  <view class="hero">
+    <view class="hero-title">外勤任务</view>
+    <view class="hero-sub">外拓拜访进度实时可见</view>
+  </view>
+
+  <view class="card" wx:for="{{list}}" wx:key="id">
+    <view class="row" style="border:none;padding-top:0;">
+      <view class="row-main">
+        <view class="row-title">{{item.title}}</view>
+        <view class="row-sub">{{item.task_no}} · {{item.customer_name}}</view>
+      </view>
+      <view class="tag {{item.status === 'DONE' ? 'tag-green' : (item.status === 'DOING' ? 'tag-orange' : 'tag-gray')}}">{{item.status_label}}</view>
+    </view>
+    <view class="bd">
+      <view class="bd-col"><text class="bd-k">客户类型</text><text class="bd-v" style="font-size:22rpx;">{{item.customer_type_label || '—'}}</text></view>
+      <view class="bd-col"><text class="bd-k">业务</text><text class="bd-v" style="font-size:22rpx;">{{item.business_type_label || '—'}}</text></view>
+      <view class="bd-col"><text class="bd-k">负责人</text><text class="bd-v" style="font-size:22rpx;">{{item.assignee_name || '—'}}</text></view>
+      <view class="bd-col"><text class="bd-k">截止</text><text class="bd-v" style="font-size:22rpx;">{{item.due_at || '—'}}</text></view>
+    </view>
+    <view class="remark" wx:if="{{item.latest_node}}">最新进度：{{item.latest_node}}</view>
+  </view>
+
+  <view class="empty" wx:if="{{!list.length}}">暂无外勤任务</view>
+</view>
