@@ -5,7 +5,7 @@
   </view>
   <view wx:if="{{search}}" class="field"><input class="input" placeholder="{{search.placeholder||'搜索'}}" bindinput="onSearch" /></view>
 
-  <view class="card" wx:for="{{list}}" wx:key="id">
+  <view class="card" wx:for="{{list}}" wx:key="id" bindtap="open" data-id="{{item.id}}">
     <view class="row" style="border:none">
       <view class="row-main">
         <view class="row-title">{{item.title}}</view>

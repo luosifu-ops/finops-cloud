@@ -21,10 +21,23 @@ Page({
       .then(d => {
         app.setAuth(d.access, d.user)
         wx.showToast({ title: '登录成功', icon: 'success' })
+        this.bindOpenid()   // 2026-10-02 增量：静默绑定 openid（失败不影响登录）
         setTimeout(() => wx.switchTab({ url: '/pages/index/index' }), 600)
       })
       .catch(() => {})
       .finally(() => this.setData({ loading: false }))
+  },
+
+  // 2026-10-02 增量：wx.login 拿 code 换 openid 并绑定到当前账号（用于审批结果推送）
+  bindOpenid() {
+    if (typeof wx.login !== 'function') return
+    wx.login({
+      success: res => {
+        if (!res.code) return
+        app.request('/accounts/auth/wx-bind-openid/', 'POST', { code: res.code })
+          .catch(() => {})   // 静默失败：未配置凭证时不影响任何功能
+      }
+    })
   },
 
   onWx() {

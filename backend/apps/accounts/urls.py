@@ -21,6 +21,8 @@ urlpatterns = [
     path("auth/wx-scan/mock/", viewsets.wx_scan_mock_view, name="wx-scan-mock"),
     path("auth/wx-scan/status/", viewsets.wx_scan_status_view, name="wx-scan-status"),
     path("auth/wx-bind/", viewsets.wx_bind_view, name="wx-bind"),
+    # 2026-10-02 增量：已登录账号静默绑定小程序 openid（供订阅消息推送用），不改动上面的绑定流程
+    path("auth/wx-bind-openid/", viewsets.wx_bind_openid_view, name="wx-bind-openid"),
     path("auth/me/", viewsets.me_view, name="me"),
     path("auth/change-password/", viewsets.change_password_view, name="change-password"),
     path("company/", viewsets.company_profile_view, name="company-profile"),

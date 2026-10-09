@@ -30,6 +30,13 @@ Page({
   filter(e) { this.setData({ tab: e.currentTarget.dataset.v }, () => this.load()) },
   onSearch(e) { this.setData({ kw: e.detail.value }, () => this.load()) },
 
+  // 点客户进 360° 画像（客户档案 + 合同 + 跟进 + 通话）
+  open(e) {
+    const id = e.currentTarget.dataset.id
+    if (!id) return
+    wx.navigateTo({ url: '/pages/sales/customerDetail?id=' + id })
+  },
+
   load(done) {
     this.setData({ error: '', meta: '请求中…' })
     let url = ENDPOINT + '?page_size=' + PAGE_SIZE

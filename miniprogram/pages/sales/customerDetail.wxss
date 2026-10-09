@@ -1,0 +1,36 @@
+/* 客户 360° · 跟进时间轴（其余样式复用 app.wxss 全局类） */
+.tl {
+  border-left: 4rpx solid #EEF0F6;
+  padding-left: 24rpx;
+  margin-top: 6rpx;
+}
+.tl-item {
+  padding: 18rpx 0;
+  border-bottom: 1rpx dashed #F0F1F6;
+}
+.tl-item:last-child {
+  border-bottom: none;
+}
+.tl-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.tl-way {
+  font-size: 27rpx;
+  font-weight: 700;
+}
+.tl-time {
+  font-size: 22rpx;
+  color: var(--sub);
+}
+.tl-body {
+  font-size: 27rpx;
+  line-height: 1.65;
+  margin-top: 8rpx;
+}
+.tl-next {
+  font-size: 23rpx;
+  color: #E8820C;
+  margin-top: 10rpx;
+}

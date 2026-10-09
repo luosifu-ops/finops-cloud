@@ -16,7 +16,8 @@ from django.utils import timezone
 from apps.accounts.models import User, Department, EntryApplication
 from .models import (
     RegularizationApplication, TransferApplication,
-    ResignApplication, LeaveApplication, EmployeeChangeLog, LeaveBalance,
+    ResignApplication, LeaveApplication, ExpenseApplication,
+    EmployeeChangeLog, LeaveBalance,
 )
 
 
@@ -24,6 +25,9 @@ from .models import (
 @receiver(pre_save, sender=RegularizationApplication)
 @receiver(pre_save, sender=TransferApplication)
 @receiver(pre_save, sender=ResignApplication)
+# 2026-10-02 增量：请假/报销也需要旧状态，用于判断是否刚发生审批结果变更（仅推送一次）
+@receiver(pre_save, sender=LeaveApplication)
+@receiver(pre_save, sender=ExpenseApplication)
 def _capture_old_status(sender, instance, **kwargs):
     if instance.pk:
         old = sender.objects.filter(pk=instance.pk).only("status").first()
@@ -148,3 +152,40 @@ def _leave_approved_update_balance(sender, instance, created, **kwargs):
     setattr(balance, flag, (getattr(balance, flag) or 0) + (instance.days or 0))
     balance.save()
     instance._leave_synced = True
+
+
+# ---------- 审批结果订阅消息推送（2026-10-02 增量，纯新增）----------
+# 说明：
+# - 一次性订阅消息**不需要微信认证**；未配置小程序凭证时 apps.common.wechat 静默跳过，
+#   不影响上面的假期余额回写等任何既有逻辑；
+# - 只在状态「变为」APPROVED/REJECTED 时推一次（靠 _old_status 与 _wx_pushed 双重防重）。
+def _push_approval_result(instance, biz_name, page):
+    status = getattr(instance, "status", "")
+    if status not in ("APPROVED", "REJECTED"):
+        return
+    if getattr(instance, "_wx_pushed", False):
+        return
+    if getattr(instance, "_old_status", None) == status:
+        return
+    user = getattr(instance, "user", None)
+    if not user:
+        return
+    from apps.common import wechat
+    wechat.push_approval_result(
+        user,
+        biz_name,
+        approved=(status == "APPROVED"),
+        remark=getattr(instance, "approve_remark", "") or "",
+        page=page,
+    )
+    instance._wx_pushed = True
+
+
+@receiver(post_save, sender=LeaveApplication)
+def _leave_result_push(sender, instance, created, **kwargs):
+    _push_approval_result(instance, "请假申请", "pages/hr/leave")
+
+
+@receiver(post_save, sender=ExpenseApplication)
+def _expense_result_push(sender, instance, created, **kwargs):
+    _push_approval_result(instance, "报销申请", "pages/hr/expense")

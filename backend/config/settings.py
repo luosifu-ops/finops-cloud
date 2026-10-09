@@ -228,3 +228,21 @@ BRAND_SUBTITLE = os.environ.get("BRAND_SUBTITLE", "代账公司 · 一体化智�
 # 备案号（备案通过后填写，前端页脚展示；留空则不显示）
 ICP_BEIAN = os.environ.get("ICP_BEIAN", "")       # 如：滇ICP备XXXXXXXX号-X
 POLICE_BEIAN = os.environ.get("POLICE_BEIAN", "")  # 公安联网备案号
+
+# ---------- 微信小程序（openid 绑定 + 一次性订阅消息推送）----------
+# 2026-10-02 增量，纯新增：未配置时所有调用静默跳过，不影响任何既有流程。
+# ⚠️ 关于认证：**一次性订阅消息不需要微信认证**（企业/个人主体均可）；
+#    只有「长期订阅消息」才要求行业资质 + 微信认证。故未认证也能用本能力。
+# 凭证获取：mp.weixin.qq.com → 开发 → 开发管理 → 开发设置（AppID / AppSecret）
+# 模板获取：mp.weixin.qq.com → 订阅消息 → 我的模板 → 选用后复制「模板ID」，
+#          填到下面的 WX_TMPL_APPROVAL_RESULT（审批结果通知）。
+WECHAT_MINI = {
+    "APPID": os.environ.get("WX_MINI_APPID", ""),
+    "SECRET": os.environ.get("WX_MINI_SECRET", ""),
+    "ENABLED": os.environ.get("WX_MINI_ENABLED", "False") == "True",
+    "STATE": os.environ.get("WX_MINI_STATE", "formal"),  # formal=正式版 / trial=体验版
+    "TEMPLATES": {
+        # 审批结果通知（请假/报销/加班等通用）
+        "APPROVAL_RESULT": os.environ.get("WX_TMPL_APPROVAL_RESULT", ""),
+    },
+}

@@ -43,6 +43,8 @@ Page({
       return
     }
     this.setData({ submitting: true })
+    // 2026-10-02 增量：提交前申请一次性订阅授权（用于审批结果推送）；未填模板 ID 则静默跳过
+    app.askSubscribe()
     const payload = {
       category: CATEGORIES[f.catIndex].value,
       happened_at: f.happened_at,

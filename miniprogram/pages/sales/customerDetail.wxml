@@ -1,0 +1,100 @@
+<view class="page-pad">
+  <view class="metabar" wx:if="{{meta}}">{{meta}}</view>
+  <view class="errbox" wx:if="{{error}}">加载失败：{{error}}（请下拉刷新或返回重进）</view>
+
+  <!-- 客户头部 -->
+  <view class="card" wx:if="{{c}}">
+    <view class="row" style="border:none">
+      <view class="row-main">
+        <view class="row-title">{{c.name}}</view>
+        <view class="row-sub" wx:if="{{typeText}}">{{typeText}} · 等级 {{c.level}}</view>
+      </view>
+      <text class="tag {{statusCls}}" wx:if="{{statusText}}">{{statusText}}</text>
+    </view>
+
+    <view class="bd">
+      <view class="bd-col" style="width:33.3%">
+        <text class="bd-k">合同总额</text>
+        <text class="bd-v">¥{{contractsTotal}}</text>
+      </view>
+      <view class="bd-col" style="width:33.3%">
+        <text class="bd-k">已回款</text>
+        <text class="bd-v">¥{{contractsReceived}}</text>
+      </view>
+      <view class="bd-col" style="width:33.3%">
+        <text class="bd-k">合同数</text>
+        <text class="bd-v">{{contracts.length}}</text>
+      </view>
+    </view>
+
+    <view style="display:flex;gap:16rpx;margin-top:24rpx">
+      <view class="btn btn-blue" style="flex:1" bindtap="call">拨打电话</view>
+      <view class="btn btn-green" style="flex:1" bindtap="copyWx">复制微信</view>
+    </view>
+  </view>
+
+  <!-- 基本信息 -->
+  <view class="section-title"><text class="bar"></text>基本信息</view>
+  <view class="card">
+    <view class="row" wx:for="{{base}}" wx:key="k">
+      <text class="row-sub" style="margin-top:0">{{item.k}}</text>
+      <text style="font-size:27rpx;max-width:60%;text-align:right">{{item.v}}</text>
+    </view>
+    <view class="empty" wx:if="{{!base.length}}">暂无详细信息</view>
+  </view>
+
+  <!-- 合同 / 订单 -->
+  <view class="section-title"><text class="bar"></text>合同订单（{{contracts.length}}）</view>
+  <view class="card" wx:for="{{contracts}}" wx:key="id">
+    <view class="row" style="border:none">
+      <view class="row-main">
+        <view class="row-title">{{item.title}}</view>
+        <view class="row-sub" wx:if="{{item.no}}">{{item.no}} · {{item.biz}}</view>
+        <view class="row-sub" wx:if="{{item.period}}">服务周期：{{item.period}}</view>
+        <view class="row-sub" wx:if="{{item.signed}}">签订：{{item.signed}}</view>
+      </view>
+      <view style="text-align:right">
+        <text class="tag {{item.statusCls}}">{{item.statusText}}</text>
+        <view class="row-sub">金额 ¥{{item.amount}}</view>
+        <view class="row-sub">已收 ¥{{item.received}}</view>
+      </view>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{!contracts.length}}">暂无合同</view>
+
+  <!-- 跟进记录 -->
+  <view class="section-title"><text class="bar"></text>跟进记录（{{followups.length}}）</view>
+  <view class="card" wx:if="{{followups.length}}">
+    <view class="tl">
+      <view class="tl-item" wx:for="{{followups}}" wx:key="id">
+        <view class="tl-head">
+          <text class="tl-way">{{item.way}}</text>
+          <text class="tl-time">{{item.at}}</text>
+        </view>
+        <view class="tl-body">{{item.content}}</view>
+        <view class="row-sub" wx:if="{{item.user}}">跟进人：{{item.user}}</view>
+        <view class="tl-next" wx:if="{{item.next || item.nextAction}}">
+          下一步：{{item.nextAction}}{{item.next ? '（' + item.next + '）' : ''}}
+        </view>
+      </view>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{!followups.length}}">暂无跟进记录</view>
+
+  <!-- 通话记录 -->
+  <view class="section-title"><text class="bar"></text>通话记录（{{calls.length}}）</view>
+  <view class="card" wx:for="{{calls}}" wx:key="id">
+    <view class="row" style="border:none">
+      <view class="row-main">
+        <view class="row-title">{{item.result}} · {{item.dur}}</view>
+        <view class="row-sub" wx:if="{{item.phone}}">{{item.phone}}</view>
+        <view class="row-sub" wx:if="{{item.summary}}">{{item.summary}}</view>
+      </view>
+      <view style="text-align:right">
+        <text class="tag tag-blue" wx:if="{{item.wechat}}">{{item.wechat}}</text>
+        <view class="row-sub">{{item.at}}</view>
+      </view>
+    </view>
+  </view>
+  <view class="empty" wx:if="{{!calls.length}}">暂无通话记录</view>
+</view>

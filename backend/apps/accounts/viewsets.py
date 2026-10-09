@@ -92,7 +92,13 @@ def wx_login_view(request):
     code = request.data.get("code")
     username = request.data.get("username")
     password = request.data.get("password")
-    openid = request.data.get("openid")  # 生产环境应由 code 换取，此处留接口位
+    openid = request.data.get("openid")  # 兜底：前端直传（原逻辑保留）
+    # 2026-10-02 增量：配置了小程序凭证时，用 code 向微信换取真实 openid
+    if not openid and code:
+        from apps.common import wechat
+        sess = wechat.code2session(code)
+        if sess:
+            openid = sess.get("openid")
 
     if username and password:
         user = authenticate(username=username, password=password)
@@ -468,6 +474,31 @@ def wx_bind_view(request):
     _bind_wechat_identity(user, openid, unionid)
     return Response({"code": 0, "msg": "ok", "data": {
         **build_token(user), "user": UserDetailSerializer(user).data}})
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def wx_bind_openid_view(request):
+    """2026-10-02 增量：把当前已登录账号与小程序 openid 绑定（用于订阅消息推送）。
+
+    纯新增接口，不改动 wx_bind_view 的「账号密码绑定」流程。
+    入参：{ "code": "wx.login 拿到的 code" }，或 { "openid": "..." } 兜底直传。
+    未配置小程序凭证时静默返回未绑定，绝不影响登录主流程。
+    """
+    from apps.common import wechat
+
+    openid = request.data.get("openid", "")
+    code = request.data.get("code", "")
+    if not openid and code:
+        sess = wechat.code2session(code)
+        if sess:
+            openid = sess.get("openid", "")
+    if not openid:
+        return Response({"code": 1, "msg": "未取到 openid（小程序凭证未配置或 code 已失效）"})
+    user = request.user
+    user.openid = openid
+    user.save(update_fields=["openid"])
+    return Response({"code": 0, "msg": "ok", "data": {"openid": openid}})
 
 
 # ============================================================================

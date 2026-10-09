@@ -17,7 +17,10 @@ App({
   globalData: {
     baseUrl: BASE_URL,
     token: '',
-    user: null
+    user: null,
+    // 2026-10-02 增量：一次性订阅消息模板 ID（mp 后台「订阅消息 → 我的模板」复制）
+    // 留空数组 = 不弹授权、不影响任何提交流程；填入后提交时会自动申请授权。
+    wxTmplIds: []
   },
 
   onLaunch() {
@@ -85,6 +88,20 @@ App({
     if (r.results) return { list: r.results, total: r.count || r.results.length }
     if (Array.isArray(r)) return { list: r, total: r.length }
     return { list: [], total: 0, item: r }
+  },
+
+  // 2026-10-02 增量：申请一次性订阅消息授权。
+  // 未配置模板 ID 或真机不支持时静默跳过，直接回调，不阻断提交。
+  askSubscribe(done) {
+    const ids = (this.globalData.wxTmplIds || []).filter(Boolean)
+    if (!ids.length || typeof wx.requestSubscribeMessage !== 'function') {
+      done && done()
+      return
+    }
+    wx.requestSubscribeMessage({
+      tmplIds: ids,
+      complete: () => { done && done() }
+    })
   },
 
   setAuth(token, user) {

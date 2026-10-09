@@ -35,6 +35,7 @@
     "pages/hr/apply",
     "pages/enterprise/enterprise",
     "pages/sales/customers",
+    "pages/sales/customerDetail",
     "pages/sales/contracts",
     "pages/accounting/declarations",
     "pages/membership/plans",
