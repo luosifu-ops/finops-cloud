@@ -799,6 +799,13 @@ function openEdit(row) {
 }
 
 async function submit() {
+  // 2026-11-02 必填校验：带 * 的字段为空时直接提示，不再发请求（避免后端 null 报错）
+  const missing = (effectiveFormFields.value || [])
+    .filter((f) => f.required && (form[f.prop] === '' || form[f.prop] === null || form[f.prop] === undefined))
+  if (missing.length) {
+    ElMessage.warning(`请先填写：${missing.map((f) => f.label).join('、')}`)
+    return
+  }
   saving.value = true
   try {
     if (editingId.value) {

@@ -70,7 +70,11 @@ async function loadDicts() {
       http.get('/ops/accounts/?page_size=200').catch(() => null),
       http.get('/ops/campaigns/?page_size=200').catch(() => null),
     ])
-    const unwrap = (r) => (Array.isArray(r) ? r : (r?.results || []))
+    const unwrap = (r) => {
+      let body = r || {}
+      if (body && typeof body === 'object' && 'code' in body && 'data' in body) body = body.data
+      return Array.isArray(body) ? body : (body?.results || [])
+    }
     const platforms = unwrap(ps).map((p) => ({ value: p.id, label: p.name }))
     const accounts = unwrap(as_).map((a) => ({
       value: a.id,
