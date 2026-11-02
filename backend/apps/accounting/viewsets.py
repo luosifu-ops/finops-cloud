@@ -1,11 +1,12 @@
 """会计部：视图集"""
 from datetime import date, datetime, timedelta
 
-from django.db.models import Q, Count
+from django.db.models import Q, Count, Sum
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.accounts.models import User
 from apps.common.permissions import visible_user_ids, IsManagerOrAbove, is_boss
@@ -13,14 +14,14 @@ from apps.common.viewsets import ScopeModelViewSet, BizScopeModelViewSet
 from .models import (
     TaxType, AccountingClient, MonthlyTask, TaskStep, Voucher, Invoice,
     BankStatement, TaxDeclaration, SocialInsurance, AnnualReport,
-    BusinessItem, ClientDocument, HandoverRecord, BookSet,
+    BusinessItem, ClientDocument, HandoverRecord, BookSet, ClientPayment,
 )
 from .serializers import (
     TaxTypeSerializer, AccountingClientSerializer, MonthlyTaskSerializer,
     TaskStepSerializer, VoucherSerializer, InvoiceSerializer,
     BankStatementSerializer, TaxDeclarationSerializer, SocialInsuranceSerializer,
     AnnualReportSerializer, BusinessItemSerializer, ClientDocumentSerializer,
-    HandoverRecordSerializer, BookSetSerializer,
+    HandoverRecordSerializer, BookSetSerializer, ClientPaymentSerializer,
 )
 
 
@@ -748,4 +749,119 @@ class BookSetViewSet(viewsets.ModelViewSet):
             "active": qs.filter(status="ACTIVE").count(),
             "paused": qs.filter(status="PAUSED").count(),
             "periods": list(qs.values_list("period", flat=True).distinct().order_by("-period")[:12]),
+        }})
+
+
+# ==================== 2026-10-30 Boss 专项：对标成熟代账系统补齐 ====================
+
+class ClientPaymentViewSet(BizScopeModelViewSet):
+    """服务费收款台账：每客户每服务期间的应收/已收/欠费/退费全流程"""
+    queryset = ClientPayment.objects.filter(is_deleted=False)
+    serializer_class = ClientPaymentSerializer
+    owner_field = "operator"
+    scope_by_department = True
+    log_module = "服务费收款"
+    date_field = "paid_date"
+    search_fields = ["client__customer__name", "period", "voucher_no"]
+    ordering_fields = ["period", "amount_due", "amount_paid", "paid_date"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return apply_filters(qs, self.request, {
+            "client": "client_id", "period": "period",
+            "status": "status", "method": "method",
+        })
+
+    def perform_create(self, serializer):
+        if serializer.validated_data.get("operator") is None:
+            serializer.save(operator=self.request.user, created_by=self.request.user)
+        else:
+            serializer.save(created_by=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.save()
+
+    @action(detail=False, methods=["get"])
+    def statistics(self, request):
+        """当前筛选范围下的 应收/已收/未收 金额与笔数汇总"""
+        qs = self.filter_queryset(self.get_queryset())
+        agg = qs.aggregate(total_due=Sum("amount_due"), total_paid=Sum("amount_paid"))
+        total_due = agg["total_due"] or 0
+        total_paid = agg["total_paid"] or 0
+        by_status = {row["status"]: row["n"] for row in qs.values("status").annotate(n=Count("id"))}
+        return Response({"code": 0, "data": {
+            "count": qs.count(),
+            "total_due": total_due, "total_paid": total_paid,
+            "total_due_left": max(total_due - total_paid, 0),
+            "unpaid_count": by_status.get("UNPAID", 0) + by_status.get("PARTIAL", 0),
+            "by_status": by_status,
+        }})
+
+
+class ReminderCenterApiView(APIView):
+    """财税到期提醒中心（只读聚合，2026-10-30 Boss 专项）
+
+    对标成熟代账系统的「预警看板」：聚合四类期限 ——
+    ① 纳税申报临期/逾期 ② 月度做账任务临期/逾期 ③ 工商年报临期/逾期 ④ 客户服务到期/已到期
+    权限：管理层/老板看全部；普通会计只看自己（含助理）客户的事项。
+    """
+
+    def _scoped(self, qs, user, client_path="client"):
+        """按角色收窄客户范围（client_path 为空表示 qs 本身就是客户查询集）"""
+        if is_boss(user) or user.role in ("MANAGER", "HR"):
+            return qs
+        acc_path = f"{client_path}__accountant" if client_path else "accountant"
+        asst_path = f"{client_path}__assistant" if client_path else "assistant"
+        return qs.filter(Q(**{acc_path: user}) | Q(**{asst_path: user}))
+
+    def get(self, request):
+        u = request.user
+        today = timezone.now().date()
+        soon = today + timedelta(days=7)
+        soon30 = today + timedelta(days=30)
+
+        # ① 申报：截止日已过但未申报 = 逾期；7 天内到期未申报 = 临期
+        decl = self._scoped(TaxDeclaration.objects.filter(is_deleted=False, declared_at__isnull=True), u)
+        decl_overdue = decl.filter(deadline__lt=today).order_by("deadline")
+        decl_soon = decl.filter(deadline__gte=today, deadline__lte=soon).order_by("deadline")
+
+        # ② 做账任务：未完成任务按 deadline
+        tasks = self._scoped(MonthlyTask.objects.filter(is_deleted=False).exclude(status="DONE"), u)
+        task_overdue = tasks.filter(deadline__lt=today).order_by("deadline")
+        task_soon = tasks.filter(deadline__gte=today, deadline__lte=soon).order_by("deadline")
+
+        # ③ 年报：未提交按 deadline（30 天窗口）
+        reports = self._scoped(AnnualReport.objects.filter(is_deleted=False, submitted=False), u)
+        report_overdue = reports.filter(deadline__lt=today).order_by("deadline")
+        report_soon = reports.filter(deadline__gte=today, deadline__lte=soon30).order_by("deadline")
+
+        # ④ 客户服务到期：服务期内客户 30 天内到期 + 已到期未续（已终止客户除外）
+        clients = self._scoped(
+            AccountingClient.objects.filter(is_deleted=False).exclude(status="STOPPED"), u, client_path="")
+        client_soon = clients.filter(service_end__gte=today, service_end__lte=soon30).order_by("service_end")
+        client_expired = clients.filter(service_end__lt=today).order_by("service_end")
+
+        def items(qs, fields):
+            return [{
+                "id": o.id,
+                "client": (str(getattr(o, "client", "") or "")),
+                **{f: getattr(o, f, None) for f in fields},
+            } for o in qs[:50]]
+
+        return Response({"code": 0, "data": {
+            "today": str(today),
+            "decl_overdue": items(decl_overdue, ["period", "deadline"]),
+            "decl_soon": items(decl_soon, ["period", "deadline"]),
+            "task_overdue": items(task_overdue, ["period", "deadline", "status"]),
+            "task_soon": items(task_soon, ["period", "deadline", "status"]),
+            "report_overdue": items(report_overdue, ["year", "deadline"]),
+            "report_soon": items(report_soon, ["year", "deadline"]),
+            "client_soon": items(client_soon, ["service_end", "monthly_fee"]),
+            "client_expired": items(client_expired, ["service_end", "monthly_fee"]),
+            "counts": {
+                "decl_overdue": decl_overdue.count(), "decl_soon": decl_soon.count(),
+                "task_overdue": task_overdue.count(), "task_soon": task_soon.count(),
+                "report_overdue": report_overdue.count(), "report_soon": report_soon.count(),
+                "client_soon": client_soon.count(), "client_expired": client_expired.count(),
+            },
         }})

@@ -17,7 +17,9 @@ router.register("business-items", viewsets.BusinessItemViewSet, basename="busine
 router.register("client-documents", viewsets.ClientDocumentViewSet, basename="client-document")
 router.register("handovers", viewsets.HandoverRecordViewSet, basename="handover-record")
 router.register("book-sets", viewsets.BookSetViewSet, basename="book-set")
+router.register("client-payments", viewsets.ClientPaymentViewSet, basename="client-payment")
 
 urlpatterns = [
     path("", include(router.urls)),
+    path("reminders/", viewsets.ReminderCenterApiView.as_view(), name="accounting-reminders"),
 ]

@@ -3,7 +3,7 @@ from rest_framework import serializers
 from .models import (
     TaxType, AccountingClient, MonthlyTask, TaskStep, Voucher, Invoice,
     BankStatement, TaxDeclaration, SocialInsurance, AnnualReport,
-    BusinessItem, ClientDocument, HandoverRecord, BookSet,
+    BusinessItem, ClientDocument, HandoverRecord, BookSet, ClientPayment,
 )
 
 
@@ -207,3 +207,19 @@ class BookSetSerializer(serializers.ModelSerializer):
                   "period", "opening_balance", "voucher_count", "yz_account_no", "status",
                   "status_name", "remark", "created_at", "updated_at"]
         read_only_fields = ["created_at", "updated_at"]
+
+
+class ClientPaymentSerializer(serializers.ModelSerializer):
+    """服务费收款台账"""
+    client_name = serializers.CharField(source="client.customer.name", read_only=True)
+    method_name = serializers.CharField(source="get_method_display", read_only=True)
+    status_name = serializers.CharField(source="get_status_display", read_only=True)
+    operator_name = serializers.CharField(source="operator.display_name", read_only=True)
+    amount_due_left = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = ClientPayment
+        fields = ["id", "client", "client_name", "period", "amount_due", "amount_paid",
+                  "amount_due_left", "paid_date", "method", "method_name", "status", "status_name",
+                  "voucher_no", "operator", "operator_name", "remark", "created_at", "updated_at"]
+        read_only_fields = ["created_at", "updated_at", "amount_due_left"]

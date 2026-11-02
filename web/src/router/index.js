@@ -83,6 +83,9 @@ const routes = [
       { path: 'sales/overview', name: 'sales-overview', component: () => import('@/views/DepartmentPerformanceView.vue'), meta: { title: '业绩核算', group: '电销部', icon: 'TrendCharts', dept: 'SALES', leader: true }, props: () => ({ code: 'SALES', title: '电销部业绩核算' }) },
       { path: 'sales/target', name: 'sales-target', component: () => import('@/views/EmployeeTargetView.vue'), meta: { title: '员工业绩目标', group: '电销部', icon: 'Aim', dept: 'SALES', hidden: true }, props: () => ({ code: 'SALES', title: '电销部' }) },
       { path: 'accounting/clients', name: 'acc-clients', component: () => import('@/views/accounting/ClientView.vue'), meta: { title: '代账客户', group: '会计部', icon: 'OfficeBuilding', dept: 'ACCOUNT' } },
+      // 2026-11-02 上线：服务费收款台账 + 到期提醒中心（2026-10-30 Boss 专项，对标成熟代账系统）
+      { path: 'accounting/payments', name: 'acc-payments', component: () => import('@/views/accounting/ClientPaymentView.vue'), meta: { title: '服务费收款', group: '会计部', icon: 'Money', dept: 'ACCOUNT' } },
+      { path: 'accounting/reminders', name: 'acc-reminders', component: () => import('@/views/accounting/ReminderCenterView.vue'), meta: { title: '到期提醒中心', group: '会计部', icon: 'AlarmClock', dept: 'ACCOUNT' } },
       { path: 'accounting/yunzhangfang', name: 'yunzhangfang', component: () => import('@/views/accounting/YunzhangfangView.vue'), meta: { title: '云账房', group: '会计部', icon: 'Coin', dept: 'ACCOUNT' } },
       { path: 'accounting/tasks', name: 'acc-tasks', component: () => import('@/views/accounting/TaskView.vue'), meta: { title: '做账任务', group: '会计部', icon: 'Tickets', dept: 'ACCOUNT' } },
       { path: 'accounting/declaration', name: 'acc-declaration', component: () => import('@/views/accounting/DeclarationView.vue'), meta: { title: '纳税申报', group: '会计部', icon: 'Stamp', dept: 'ACCOUNT' } },

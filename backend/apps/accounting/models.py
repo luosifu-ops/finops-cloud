@@ -345,3 +345,48 @@ class BookSet(BaseModel):
 
     def __str__(self):
         return self.name
+
+
+class ClientPayment(BaseModel):
+    """服务费收款台账（对标成熟代账系统：应收/已收/欠费全流程，2026-10-30 Boss 专项）
+
+    代账公司现金流核心：每客户每服务期间一笔应收，登记到账金额与方式，
+    欠费/退费一目了然；金额自动校验（已收 + 未收 = 应收）。
+    """
+    STATUS = [
+        ("UNPAID", "未收"), ("PARTIAL", "部分到账"),
+        ("PAID", "已收清"), ("REFUNDED", "已退费"),
+    ]
+    METHOD = [
+        ("BANK", "对公转账"), ("WX", "微信"), ("ALIPAY", "支付宝"),
+        ("CASH", "现金"), ("OTHER", "其他"),
+    ]
+    client = models.ForeignKey(AccountingClient, on_delete=models.CASCADE, related_name="payments",
+                               verbose_name="代账客户")
+    period = models.CharField("服务期间", max_length=20, db_index=True,
+                              help_text="如 2026-10、2026-Q4、2026-年度")
+    amount_due = models.DecimalField("应收金额(元)", max_digits=12, decimal_places=2, default=0)
+    amount_paid = models.DecimalField("已收金额(元)", max_digits=12, decimal_places=2, default=0)
+    paid_date = models.DateField("收款日期", null=True, blank=True)
+    method = models.CharField("收款方式", max_length=20, choices=METHOD, default="BANK", blank=True)
+    status = models.CharField("状态", max_length=20, choices=STATUS, default="UNPAID", db_index=True)
+    voucher_no = models.CharField("收据/流水号", max_length=60, blank=True)
+    operator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name="client_payments", verbose_name="经手人")
+    remark = models.CharField("备注", max_length=300, blank=True)
+
+    class Meta:
+        verbose_name = "服务费收款"
+        verbose_name_plural = verbose_name
+        ordering = ["-period", "-created_at"]
+
+    @property
+    def amount_due_left(self):
+        """未收金额 = 应收 - 已收（退费状态则为 0，避免负数干扰欠费统计）"""
+        if self.status == "REFUNDED":
+            return 0
+        left = (self.amount_due or 0) - (self.amount_paid or 0)
+        return max(left, 0)
+
+    def __str__(self):
+        return f"{self.client} {self.period} {self.amount_due}"
