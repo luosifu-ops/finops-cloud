@@ -1,15 +1,5 @@
 <template>
   <div class="ent">
-    <el-alert
-      v-if="!live"
-      type="warning"
-      :closable="false"
-      show-icon
-      title="当前为演示数据"
-      description="在后端配置 QICHACHA_API_KEY / TIANYANCHA_API_KEY 后显示真实工商数据。"
-      style="margin-bottom:12px"
-    />
-
     <!-- 单搜索框 -->
     <el-card class="ent-search" shadow="never">
       <el-input
@@ -25,6 +15,17 @@
           <el-button type="primary" :loading="loading" @click="search">查 询</el-button>
         </template>
       </el-input>
+      <el-button
+        style="margin-left:10px"
+        @click="openQcc(keyword || adv.name)"
+      >在企查查打开 ↗</el-button>
+      <!-- 2026-10-29 Boss 需求：企业查询里增加跳转国家电子税务局官网的入口 -->
+      <el-button
+        type="primary"
+        plain
+        style="margin-left:8px"
+        @click="openTaxBureau"
+      >国家电子税务局 ↗</el-button>
 
       <!-- 历史记录 -->
       <div v-if="history.length" class="ent-history">
@@ -89,6 +90,7 @@
                   <el-descriptions-item label="经营范围" :span="2">{{ sel.base_info?.scope }}</el-descriptions-item>
                 </el-descriptions>
                 <el-button type="success" plain style="margin-top:12px" @click="toLead">转为线索</el-button>
+                <el-button plain style="margin-top:12px" @click="openQcc(sel.base_info?.name)">在企查查查看详情 ↗</el-button>
               </el-tab-pane>
 
               <el-tab-pane label="电子营业执照" name="license">
@@ -96,7 +98,7 @@
                   <img :src="sel.license?.image" alt="电子营业执照" class="lic-img" />
                   <div class="lic-ops">
                     <el-button type="primary" @click="downloadLicense">下载电子营业执照</el-button>
-                    <p class="lic-note">※ 演示样本，真实电子营业执照请通过「电子营业执照」官方小程序 / 系统获取。</p>
+                    <p class="lic-note">※ 该文件为格式样例，正式电子营业执照请通过「电子营业执照」官方小程序 / 系统获取。</p>
                   </div>
                 </div>
               </el-tab-pane>
@@ -179,6 +181,19 @@ function removeHistory(k) {
 }
 function useHistory(k) { keyword.value = k; search() }
 
+// 跳转企查查网页版搜索（Boss 2026-10-28 要求：企业查询可直达企查查，配合浏览器已登录的企查查账号直接查看 VIP 信息）
+function openQcc(kw) {
+  const k = (kw || '').trim()
+  if (!k) { ElMessage.warning('请先输入要查询的企业名称或关键词'); return }
+  window.open('https://www.qcc.com/web/search?key=' + encodeURIComponent(k), '_blank', 'noopener')
+}
+
+// 跳转国家电子税务局官网（Boss 2026-10-29 需求：企业查询增加办税入口）
+// 查完工商信息后可直接进入办税大厅办理申报/缴款/发票等业务，无需再手动找网址
+function openTaxBureau() {
+  window.open('https://etax.chinatax.gov.cn/', '_blank', 'noopener')
+}
+
 async function search() {
   const k = keyword.value.trim()
   if (!k) { ElMessage.warning('请输入企业名称 / 法人 / 电话 / 信用代码'); return }
@@ -188,7 +203,7 @@ async function search() {
     const r = await integrationApi.enterpriseSearch({ q: k })
     results.value = unwrap(r)
     if (results.value.length) { pushHistory(k); await select(results.value[0]) }
-    else { selected.value = null; ElMessage.info('未找到匹配企业（演示数据）') }
+    else { selected.value = null; ElMessage.info('未找到匹配企业') }
   } catch (e) {
     results.value = []
   } finally { loading.value = false }
@@ -207,7 +222,7 @@ async function searchAdv() {
     const r = await integrationApi.enterpriseSearch(p)
     results.value = unwrap(r)
     if (results.value.length) await select(results.value[0])
-    else { selected.value = null; ElMessage.info('未找到匹配企业（演示数据）') }
+    else { selected.value = null; ElMessage.info('未找到匹配企业') }
   } catch (e) {
     results.value = []
   } finally { loading.value = false }
@@ -234,7 +249,7 @@ function downloadLicense() {
   a.href = lic.image
   a.download = lic.download_name || '电子营业执照.svg'
   a.click()
-  ElMessage.success('已开始下载（演示样本）')
+  ElMessage.success('已开始下载')
 }
 
 async function toLead() {

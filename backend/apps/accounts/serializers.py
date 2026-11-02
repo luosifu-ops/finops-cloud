@@ -79,22 +79,65 @@ class UserDetailSerializer(serializers.ModelSerializer):
 
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, default="123456")
+    # 用户名允许留空：留空时自动用手机号兜底（本系统以手机号作登录账号）。
+    # 显式声明后 DRF 不再自动挂 UniqueValidator，改由 validate_username 自己校验唯一，
+    # 既能支持"留空"，也不会出现重复用户名导致的 500。
+    username = serializers.CharField(required=False, allow_blank=True, max_length=150)
 
     class Meta:
         model = User
         fields = ["id", "username", "password", "first_name", "phone", "email", "employee_no",
                   "department", "team", "position", "role", "status", "entry_date",
-                  "month_target", "base_salary"]
+                  "probation_end", "regular_date", "month_target", "base_salary"]
+
+    def validate_username(self, value):
+        value = (value or "").strip()
+        if not value:
+            return value
+        qs = User.objects.filter(username=value)
+        if self.instance is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("该用户名已被占用，请换一个")
+        return value
 
     def create(self, validated_data):
         pwd = validated_data.pop("password", "123456")
+        # 工号留空时由 User.save() 自动生成（EMP0001 起），前端无需填
+        if not validated_data.get("employee_no"):
+            validated_data.pop("employee_no", None)
+        # 用户名为空时用手机号兜底（本系统一直以手机号作为登录账号）
+        if not (validated_data.get("username") or "").strip():
+            validated_data["username"] = (validated_data.get("phone") or "").strip()
+        if not validated_data.get("username"):
+            raise serializers.ValidationError({"username": "用户名与手机号至少填写一项"})
         user = User(**validated_data)
         user.set_password(pwd)
         user.save()
         return user
 
     def update(self, instance, validated_data):
+        # 隔离墙（2026-10-28）：非管理层仅能修改本人资料，且组织/权限/薪酬字段一律忽略
+        request = self.context.get("request")
+        if request is not None:
+            u = request.user
+            is_manager = bool(u and u.is_authenticated and
+                              (u.is_superuser or u.role in ("BOSS", "HR", "MANAGER")))
+            if not is_manager:
+                if instance.pk != u.pk:
+                    raise serializers.ValidationError("无权修改他人资料")
+                for f in ("role", "department", "team", "position", "status",
+                          "entry_date", "probation_end", "regular_date",
+                          "base_salary", "month_target", "employee_no", "username",
+                          "is_active", "is_staff", "is_superuser"):
+                    validated_data.pop(f, None)
         pwd = validated_data.pop("password", None)
+        # 工号被清空时保留原编号（由 User.save() 兜底沿用），不因编辑而换号
+        if "employee_no" in validated_data and not validated_data.get("employee_no"):
+            validated_data.pop("employee_no")
+        # 用户名被清空时保留原账号，避免把登录名改成空串
+        if "username" in validated_data and not (validated_data.get("username") or "").strip():
+            validated_data.pop("username")
         for k, v in validated_data.items():
             setattr(instance, k, v)
         if pwd:

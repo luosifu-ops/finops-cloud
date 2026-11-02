@@ -67,8 +67,9 @@
             </el-badge>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="190" fixed="right">
           <template #default="{ row }">
+            <el-button link type="warning" @click="openTransfer(row)">转外勤</el-button>
             <el-button link type="primary" @click="openFiles(row)">附件管理</el-button>
           </template>
         </el-table-column>
@@ -147,6 +148,15 @@
         <el-button @click="fileVisible = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <!-- 合同订单 → 外勤节点流转（2026-10-30 增量：各部门合同均可下发外勤） -->
+    <FieldTransferDialog
+      v-model="transferVisible"
+      :customer-name="transferRow.company_name"
+      :source-order-no="transferRow.order_no"
+      :source-type="deptLabel + '合同'"
+      @transferred="loadData"
+    />
   </div>
 </template>
 
@@ -154,6 +164,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { contractApi } from '@/api/contracts'
+import FieldTransferDialog from '@/components/FieldTransferDialog.vue'
 import { useUserStore } from '@/store/user'
 
 const props = defineProps({ dept: { type: String, default: 'SALES' } })
@@ -188,6 +199,16 @@ const pendingFile = ref(null)
 
 const amountSum = computed(() => list.value.reduce((s, r) => s + Number(r.amount || 0), 0))
 const avg = computed(() => total.value ? Math.round(amountSum.value / total.value) : 0)
+
+// ---------------- 合同订单 → 外勤流转 ----------------
+const transferVisible = ref(false)
+const transferRow = reactive({ company_name: '', order_no: '' })
+function openTransfer(row) {
+  transferRow.company_name = row.company_name || ''
+  // 该名录无独立合同号，用「HT-编号」作为来源单号回写外勤任务，便于双向追溯
+  transferRow.order_no = row.contract_no || `HT-${String(row.id).padStart(4, '0')}`
+  transferVisible.value = true
+}
 
 function num(v) { const n = Number(v || 0); return n ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0' }
 function statusType(s) {

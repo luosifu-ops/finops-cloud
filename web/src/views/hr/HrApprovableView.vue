@@ -10,18 +10,20 @@
     <el-table :data="list" v-loading="loading" border stripe style="width:100%">
       <el-table-column v-for="c in columns" :key="c.prop" :prop="c.prop" :label="c.label"
         :width="c.width" :min-width="c.minWidth || 110" show-overflow-tooltip />
-      <el-table-column label="操作" :width="180" fixed="right">
+      <el-table-column label="操作" :width="240" fixed="right">
         <template #default="{ row }">
-          <el-button v-if="row.status === 'PENDING' || row.status_name === '审批中'"
-            link type="primary" @click="openApprove(row, 'approve')">通过</el-button>
-          <el-button v-if="row.status === 'PENDING' || row.status_name === '审批中'"
-            link type="danger" @click="openApprove(row, 'reject')">驳回</el-button>
+          <template v-if="row.status === 'PENDING' || row.status_name === '审批中'">
+            <el-button link type="primary" @click="openApprove(row, 'approve')">通过</el-button>
+            <el-button link type="danger" @click="openApprove(row, 'reject')">驳回</el-button>
+            <el-button v-if="formFields.length" link type="warning" @click="openEdit(row)">修改</el-button>
+            <el-button link type="danger" @click="remove(row)">删除</el-button>
+          </template>
           <span v-else type="info" style="color:#909399">已{{ row.status_name }}</span>
         </template>
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="createVisible" :title="'新增' + title" width="560px" @closed="resetForm">
+    <el-dialog v-model="createVisible" :title="(editingId ? '修改' : '新增') + title" width="560px" @closed="resetForm">
       <el-form :model="form" label-width="100px">
         <el-form-item v-for="f in formFields" :key="f.prop" :label="f.label" :required="f.required">
           <el-input v-if="f.type==='text'||f.type==='textarea'" v-model="form[f.prop]"
@@ -35,7 +37,7 @@
       </el-form>
       <template #footer>
         <el-button @click="createVisible=false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="submitCreate">保 存</el-button>
+        <el-button type="primary" :loading="saving" @click="submitCreate">{{ editingId ? '保存修改' : '保 存' }}</el-button>
       </template>
     </el-dialog>
 
@@ -52,7 +54,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import http from '@/api'
 
 const props = defineProps({
@@ -66,6 +68,7 @@ const props = defineProps({
 const list = ref([])
 const loading = ref(false)
 const createVisible = ref(false)
+const editingId = ref(null)
 const approveVisible = ref(false)
 const approveAct = ref('approve')
 const current = ref(null)
@@ -104,17 +107,45 @@ async function reload() {
 function resetForm() { for (const k in form) delete form[k] }
 function openCreate() {
   resetForm()
+  editingId.value = null
   for (const f of props.formFields) form[f.prop] = f.type === 'number' ? 0 : ''
   createVisible.value = true
 }
+
+// 2026-10-31 增量：审批前修改申请（仅 PENDING 显示修改按钮）
+function openEdit(row) {
+  resetForm()
+  editingId.value = row.id
+  for (const f of props.formFields) {
+    const v = row[f.prop]
+    form[f.prop] = f.type === 'number' ? Number(v || 0) : (v ?? '')
+  }
+  createVisible.value = true
+}
+
 async function submitCreate() {
   saving.value = true
   try {
-    await http.post(props.baseUrl, { ...form })
-    ElMessage.success('已提交')
+    if (editingId.value) {
+      await http.patch(`${props.baseUrl}${editingId.value}/`, { ...form })
+      ElMessage.success('已保存修改')
+    } else {
+      await http.post(props.baseUrl, { ...form })
+      ElMessage.success('已提交')
+    }
     createVisible.value = false
     reload()
   } catch (e) { ElMessage.error('提交失败，请检查字段') } finally { saving.value = false }
+}
+
+// 2026-10-31 增量：撤回/删除申请（仅 PENDING 显示删除按钮）
+async function remove(row) {
+  try { await ElMessageBox.confirm(`确认删除该${props.title || '申请'}？删除后不可恢复。`, '删除', { type: 'warning', confirmButtonText: '确认删除' }) } catch { return }
+  try {
+    await http.delete(`${props.baseUrl}${row.id}/`)
+    ElMessage.success('已删除')
+    reload()
+  } catch (e) { ElMessage.error('删除失败') }
 }
 
 function openApprove(row, act) { current.value = row; approveAct.value = act; approveRemark.value = ''; approveVisible.value = true }

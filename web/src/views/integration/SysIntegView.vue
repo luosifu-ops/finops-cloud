@@ -313,7 +313,7 @@ onMounted(() => { loadAll(); loadCapacity() })
 .mini-card { text-align: center; }
 .mini-label { font-size: 13px; color: #909399; }
 .mini-value { font-size: 24px; font-weight: 600; margin-top: 6px; color: #303133; }
-.mini-value.primary { color: #2f6fed; }
+.mini-value.primary { color: #2a4fd4; }
 .mini-value.success { color: #ff6600; }
 .mini-value.warn { color: #e6a23c; }
 .main-card { margin-top: 4px; }

@@ -118,6 +118,54 @@ class ReviewReport(BaseModel):
         ordering = ["-created_at"]
 
 
+class TeamSummary(BaseModel):
+    """团队汇总（2026-10-30 新增）
+
+    员工提交日报 / 周报 / 月报后，系统按「部门（可细化到小组）+ 周期」自动重建汇总正文；
+    主管可在「团队汇报 → 团队汇总」直接编辑修改汇总内容（编辑后标记 is_edited，
+    后续自动汇总只更新统计，不再覆盖人工润色过的正文）。
+    """
+    KIND = [("DAILY", "日报汇总"), ("WEEKLY", "周报汇总"), ("MONTHLY", "月报汇总")]
+    kind = models.CharField("汇总类型", max_length=20, choices=KIND, default="DAILY")
+    period = models.CharField("周期", max_length=20, db_index=True,
+                              help_text="日报 2026-10-30 / 周报 2026-W44 / 月报 2026-10")
+    department = models.ForeignKey("accounts.Department", on_delete=models.CASCADE,
+                                   null=True, blank=True, related_name="team_summaries",
+                                   verbose_name="所属部门")
+    team = models.ForeignKey("accounts.Team", on_delete=models.SET_NULL,
+                             null=True, blank=True, related_name="team_summaries",
+                             verbose_name="所属小组")
+    title = models.CharField("汇总标题", max_length=200, blank=True)
+    content = models.TextField("汇总内容", blank=True)
+    stats = models.JSONField("汇总统计", default=dict, blank=True)
+    member_total = models.IntegerField("在职人数", default=0)
+    submitted_total = models.IntegerField("已提交人数", default=0)
+    source_ids = models.JSONField("来源汇报ID", default=list, blank=True)
+    is_edited = models.BooleanField("已人工编辑", default=False)
+    edited_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                  null=True, blank=True,
+                                  related_name="edited_team_summaries", verbose_name="最后编辑人")
+    edited_at = models.DateTimeField("最后编辑时间", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "团队汇总"
+        verbose_name_plural = verbose_name
+        ordering = ["-period", "kind"]
+        unique_together = ("kind", "period", "department", "team")
+
+    @property
+    def period_label(self):
+        if self.kind == "WEEKLY" and "-W" in (self.period or ""):
+            y, w = self.period.split("-W")
+            return f"{y} 年第 {int(w)} 周"
+        if self.kind == "MONTHLY" and len(self.period or "") == 7:
+            return f"{self.period[:4]} 年 {int(self.period[5:])} 月"
+        return self.period or ""
+
+    def __str__(self):
+        return f"{self.get_kind_display()}-{self.period}-{self.department_id or '全部'}"
+
+
 class ReportComment(models.Model):
     """汇报点评"""
     CONTENT_TYPE = [("DAILY", "日报"), ("WEEKLY", "周报"), ("MONTHLY", "月报"), ("REVIEW", "复盘")]

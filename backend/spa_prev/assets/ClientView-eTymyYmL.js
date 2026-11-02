@@ -1,0 +1,1 @@
+import{B as t}from"./BaseListView-CIrwWoz9.js";import{O as e,L as o}from"./vue-DoYXRPnN.js";import"./element-Codo3wlA.js";import"./index-DrC8gegk.js";import"./export-DpRGdH86.js";const _={__name:"ClientView",setup(r){return(a,i)=>(o(),e(t,{title:"代账客户",baseUrl:"/accounting/clients/","auto-form":""}))}};export{_ as default};

@@ -1,15 +1,5 @@
 <template>
   <div class="bm">
-    <el-alert
-      v-if="source === 'demo'"
-      type="warning"
-      :closable="false"
-      show-icon
-      title="当前为演示数据"
-      description="配置各平台 API Key 后可切换为真实对标数据（蝉妈妈 / 飞瓜 / 新红 等）。"
-      style="margin-bottom:12px"
-    />
-
     <!-- 搜索区 -->
     <el-card class="bm-search" shadow="never">
       <el-input
@@ -121,7 +111,7 @@
           <el-table-column prop="play" label="播放" align="right" />
           <el-table-column prop="like" label="点赞" align="right" />
         </el-table>
-        <el-empty v-else description="暂无趋势数据（演示数据）" :image-size="80" />
+        <el-empty v-else description="暂无趋势数据" :image-size="80" />
 
         <el-button type="primary" plain style="margin-top:14px" @click="openPortal(current.url)">前往主页 ›</el-button>
       </template>
@@ -210,7 +200,7 @@ async function search() {
     const u = unwrap(r)
     list.value = u.list
     source.value = u.source
-    if (!list.value.length) ElMessage.info('未找到匹配账号（演示数据）')
+    if (!list.value.length) ElMessage.info('未找到匹配账号')
   } catch (e) {
     list.value = []
   } finally {

@@ -125,11 +125,11 @@ onMounted(load)
 .wv-stem { line-height: 1.5; }
 .wv-tag { margin-right: 8px; }
 .wv-exam { font-size: 12px; color: var(--text-sub); }
-.wv-mine { color: #d93026; font-weight: 600; }
+.wv-mine { color: #c3372c; font-weight: 600; }
 .wv-right { color: var(--success); font-weight: 600; }
 .redo-stem { font-weight: 600; margin-bottom: 14px; line-height: 1.6; }
 .redo-result { margin-top: 14px; padding: 10px 12px; border-radius: 8px; }
 .redo-result.ok { background: var(--el-color-success-light-9); color: var(--success); }
-.redo-result.bad { background: var(--el-color-danger-light-9); color: #d93026; }
+.redo-result.bad { background: var(--el-color-danger-light-9); color: #c3372c; }
 .redo-analysis { margin-top: 6px; font-size: 13px; color: var(--text-sub); }
 </style>

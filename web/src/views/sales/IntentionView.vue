@@ -13,9 +13,7 @@
         <span>{{ assignRow?.name }}（{{ assignRow?.phone }}）</span>
       </el-form-item>
       <el-form-item label="指派给" required>
-        <el-select v-model="assignUid" filterable placeholder="选择成交师 / 销售" style="width: 100%">
-          <el-option v-for="u in users" :key="u.id" :label="u.display_name || u.username" :value="u.id" />
-        </el-select>
+        <PersonSelect v-model="assignUid" placeholder="选择成交师 / 销售" />
       </el-form-item>
     </el-form>
     <template #footer>
@@ -31,6 +29,7 @@ import { ElMessage } from 'element-plus'
 import BaseListView from '@/components/BaseListView.vue'
 import http, { salesApi } from '@/api'
 import { useUserStore } from '@/store/user'
+import PersonSelect from '@/components/PersonSelect.vue'
 
 const store = useUserStore()
 // 仅主管/老板/超管可见「指派」入口

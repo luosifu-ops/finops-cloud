@@ -34,6 +34,8 @@
         <div class="card-header">
           <span>线索工作台 · 多平台录入与全链路流转</span>
           <div>
+            <el-button v-if="canManage" type="warning" plain :disabled="!selected.length"
+              @click="openBulkAssign">批量分配{{ selected.length ? `(${selected.length})` : '' }}</el-button>
             <el-button v-if="canCreateLead" type="primary" @click="openCreate">+ 录入线索</el-button>
             <el-button @click="goPool">公海 →</el-button>
             <el-button @click="loadData">刷新</el-button>
@@ -62,7 +64,9 @@
       </el-form>
 
       <!-- 表格 -->
-      <el-table :data="list" v-loading="loading" border stripe size="default">
+      <el-table :data="list" v-loading="loading" border stripe size="default"
+        @selection-change="(rows) => (selected = rows)">
+        <el-table-column v-if="canManage" type="selection" width="42" fixed="left" />
         <el-table-column prop="lead_name" label="客户" min-width="120" />
         <el-table-column prop="lead_phone" label="电话" width="130" />
         <el-table-column label="来源平台" width="110">
@@ -87,13 +91,15 @@
             <span v-else class="muted">未标记</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="360" fixed="right">
+        <el-table-column label="操作" :width="isOpsPool ? 470 : 360" fixed="right">
           <template #default="{ row }">
             <el-button v-if="canManage" link type="danger" @click="openAssign(row)">分配</el-button>
+            <el-button v-if="canModifyLead(row)" link type="primary" @click="openEdit(row)">编辑</el-button>
             <el-button link type="primary" @click="openStage(row)">标记阶段</el-button>
             <el-button link type="success" @click="doAccept(row)">承接</el-button>
             <el-button link type="warning" @click="doReturn(row)">退公海</el-button>
             <el-button link @click="openFlows(row)">流转</el-button>
+            <el-button v-if="canModifyLead(row)" link type="danger" @click="removeLead(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -172,6 +178,51 @@
       <el-empty v-if="!flows.length" description="暂无流转记录" />
     </el-dialog>
 
+    <!-- 编辑线索（2026-10-30：运营部线索池录入出错可改） -->
+    <el-dialog v-model="editVisible" title="编辑线索" width="620px">
+      <el-alert type="info" :closable="false" show-icon
+                title="仅修改录入信息，归属运营 / 承接人请走「分配」；保存后写入操作日志留痕" />
+      <el-form :model="editForm" label-width="110px" style="margin-top:12px">
+        <el-form-item label="客户姓名" required>
+          <el-input v-model="editForm.name" placeholder="客户姓名" />
+        </el-form-item>
+        <el-form-item label="电话">
+          <el-input v-model="editForm.phone" placeholder="联系电话" />
+        </el-form-item>
+        <el-form-item label="意向业务">
+          <el-input v-model="editForm.intention" placeholder="如：注册公司 / 代理记账 / 注销" />
+        </el-form-item>
+        <el-form-item label="来源平台">
+          <el-select v-model="editForm.channel" placeholder="选择平台" style="width:100%">
+            <el-option v-for="c in channels" :key="c.id" :label="c.name" :value="c.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="来源账号编号">
+          <el-input v-model="editForm.source_account_no" placeholder="如 DY-ACC-001" />
+        </el-form-item>
+        <el-form-item label="联系方式">
+          <el-select v-model="editForm.contact_type" style="width:110px">
+            <el-option label="电话" value="PHONE" />
+            <el-option label="微信" value="WECHAT" />
+          </el-select>
+          <el-input v-model="editForm.contact_value" placeholder="联系方式" style="width:240px;margin-left:8px" />
+        </el-form-item>
+        <el-form-item label="联系人">
+          <el-input v-model="editForm.contact_person" placeholder="对接人姓名" />
+        </el-form-item>
+        <el-form-item label="客户需求">
+          <el-input v-model="editForm.customer_need" type="textarea" :rows="2" placeholder="客户具体需求" />
+        </el-form-item>
+        <el-form-item label="成交金额">
+          <el-input-number v-model="editForm.deal_amount" :min="0" :precision="2" style="width:200px" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" :loading="editing" @click="submitEdit">保存修改</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 管理层分配 -->
     <el-dialog v-model="assignVisible" title="管理层分配线索" width="480px">
       <el-alert type="info" :closable="false" show-icon
@@ -179,13 +230,21 @@
       <el-form label-width="100px" style="margin-top:12px">
         <el-form-item label="客户">{{ current?.lead_name }}</el-form-item>
         <el-form-item label="归属运营">
-          <el-select v-model="assignForm.owner_id" placeholder="不改动运营" clearable style="width:100%">
-            <el-option v-for="u in opsUsers" :key="u.user" :label="u.user_name" :value="u.user" />
+          <el-select v-model="assignForm.owner_id" placeholder="不改动运营" clearable filterable
+                     :loading="staffLoading" style="width:100%">
+            <el-option v-for="u in opsUsers" :key="u.id" :label="u.name" :value="u.id">
+              <span>{{ u.name }}</span>
+              <span class="opt-dept">{{ u.dept }}</span>
+            </el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="承接人">
-          <el-select v-model="assignForm.closer_id" placeholder="不改动承接人" clearable style="width:100%">
-            <el-option v-for="u in closerUsers" :key="u.user" :label="u.user_name" :value="u.user" />
+          <el-select v-model="assignForm.closer_id" placeholder="不改动承接人" clearable filterable
+                     :loading="staffLoading" style="width:100%">
+            <el-option v-for="u in closerUsers" :key="u.id" :label="u.name" :value="u.id">
+              <span>{{ u.name }}</span>
+              <span class="opt-dept">{{ u.dept }}</span>
+            </el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="备注">
@@ -197,17 +256,52 @@
         <el-button type="primary" :loading="assigning" @click="submitAssign">确认分配</el-button>
       </template>
     </el-dialog>
+
+    <!-- 批量分配 -->
+    <el-dialog v-model="bulkVisible" title="批量分配线索" width="480px">
+      <el-alert type="info" :closable="false" show-icon
+                :title="`已勾选 ${selected.length} 条线索，将统一指派并移出公海、逐条留痕`" />
+      <el-form label-width="100px" style="margin-top:12px">
+        <el-form-item label="归属运营">
+          <el-select v-model="bulkForm.owner_id" placeholder="不改动运营" clearable filterable
+                     :loading="staffLoading" style="width:100%">
+            <el-option v-for="u in opsUsers" :key="u.id" :label="u.name" :value="u.id">
+              <span>{{ u.name }}</span>
+              <span class="opt-dept">{{ u.dept }}</span>
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="承接人">
+          <el-select v-model="bulkForm.closer_id" placeholder="不改动承接人" clearable filterable
+                     :loading="staffLoading" style="width:100%">
+            <el-option v-for="u in closerUsers" :key="u.id" :label="u.name" :value="u.id">
+              <span>{{ u.name }}</span>
+              <span class="opt-dept">{{ u.dept }}</span>
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="bulkForm.remark" placeholder="选填，如：本批新渠道线索统一交由张三" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="bulkVisible = false">取消</el-button>
+        <el-button type="primary" :loading="bulkAssigning" @click="submitBulkAssign">确认批量分配</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { growthApi } from '@/api/growth'
+import { orgApi } from '@/api'
 import { useUserStore } from '@/store/user'
 
 const router = useRouter()
+const route = useRoute()
 const store = useUserStore()
 
 const list = ref([])
@@ -234,7 +328,35 @@ const assigning = ref(false)
 const roleCanViewAll = ref(false)
 const opsUsers = ref([])
 const closerUsers = ref([])
+const staffLoading = ref(false)
 const assignForm = reactive({ owner_id: null, closer_id: null, remark: '' })
+
+// 批量分配（2026-10-29 Boss 专项）
+const selected = ref([])
+const bulkVisible = ref(false)
+const bulkAssigning = ref(false)
+const bulkForm = reactive({ owner_id: null, closer_id: null, remark: '' })
+function openBulkAssign() {
+  if (!selected.value.length) return
+  Object.assign(bulkForm, { owner_id: null, closer_id: null, remark: '' })
+  bulkVisible.value = true
+}
+async function submitBulkAssign() {
+  if (!bulkForm.owner_id && !bulkForm.closer_id) {
+    return ElMessage.warning('请至少选择归属运营或承接人')
+  }
+  bulkAssigning.value = true
+  try {
+    const r = await growthApi.bulkAssignLead({
+      ids: selected.value.map((s) => s.id),
+      ...bulkForm,
+    })
+    ElMessage.success(r?.detail || r?.msg || '批量分配完成')
+    bulkVisible.value = false
+    selected.value = []
+    loadData()
+  } catch (e) { /* 拦截器已提示 */ } finally { bulkAssigning.value = false }
+}
 
 const form = reactive({
   channel: '', source_account_no: '', name: '', phone: '', wechat: '',
@@ -242,10 +364,20 @@ const form = reactive({
 })
 
 const dealCount = computed(() => list.value.filter(r => r.stage_3570 === 'S0').length)
-// 录入权限：超管 / 经理 / 老板 / HR 之一即可；演示访客不可写
-const canCreateLead = computed(() => !store.isDemo && (store.isBoss || store.isManager || store.isHR || store.isSuper))
+// 录入权限（2026-11-02 与主账号对齐）：所有登录账号均可录入线索；
+// 隔离不变：录入人自动=当前登录人，列表可见范围仍由后端 scope_leads 隔离。演示访客不可写。
+const canCreateLead = computed(() => !store.isDemo)
 // 管理层（可看全量）才拥有「分配」权限，与后端 IsGrowthAdmin(can_view_all) 对齐
 const canManage = computed(() => !store.isDemo && (roleCanViewAll.value || store.isBoss || store.isManager || store.isSuper))
+
+// 2026-10-30 增量：仅「运营部 → 线索池」开放线索编辑 / 删除（其余页面行为保持不变）
+const isOpsPool = computed(() => (route.path || '').startsWith('/ops/leads'))
+const myId = computed(() => store.userInfo?.id)
+function canModifyLead(row) {
+  if (!isOpsPool.value || store.isDemo || !row) return false
+  if (canManage.value) return true
+  return row.ops_owner === myId.value || row.closer === myId.value
+}
 
 function stageTagType(s) {
   return { S3: 'info', S5: 'primary', S7: 'warning', S0: 'success' }[s] || 'info'
@@ -283,17 +415,62 @@ async function loadRole() {
     if (!r) { roleLabel.value = '未配置'; return }
     roleCanViewAll.value = !!r.can_view_all
     roleLabel.value = r.has_role ? r.role_label : (r.can_view_all ? '超级总账号' : '未配置')
-    if (canManage.value) loadGrowthRoles()
   } catch (e) { /* ignore */ }
 }
 
-async function loadGrowthRoles() {
+/**
+ * 分配弹窗人员名单（2026-10-30 修复）
+ * 根因：原来只读 /growth/roles/，而生产未配置任何 GrowthRole，两个下拉全空 → 无法分配到个人。
+ * 现在主数据源改为真实员工名单（/accounts/users/），GrowthRole 若已配置则优先采用其 OPS/CLOSER 归类；
+ * 若某一列仍为空，退化为「全公司在职员工」，保证任何情况下都能选到人。
+ */
+function dedupeUsers(list) {
+  const m = new Map()
+  for (const u of list) {
+    if (u && u.id != null && !m.has(u.id)) m.set(u.id, u)
+  }
+  return [...m.values()]
+}
+
+async function loadAssignUsers() {
+  staffLoading.value = true
   try {
-    const res = await growthApi.growthRoles()
-    const rows = Array.isArray(res) ? res : (res.results || [])
-    opsUsers.value = rows.filter(r => r.role === 'OPS')
-    closerUsers.value = rows.filter(r => r.role === 'CLOSER')
-  } catch (e) { /* 非管理层会 403，忽略即可 */ }
+    let staff = []
+    try {
+      const res = await orgApi.users({ page_size: 500 })
+      const rows = Array.isArray(res) ? res : (res.results || [])
+      staff = rows
+        .filter((u) => u.is_active !== false)
+        .map((u) => ({
+          id: u.id,
+          name: u.display_name || u.first_name || u.username,
+          dept: u.department_name || '',
+        }))
+    } catch (e) { staff = [] }
+
+    let roleOps = []
+    let roleCloser = []
+    try {
+      const res2 = await growthApi.growthRoles()
+      const rows2 = Array.isArray(res2) ? res2 : (res2.results || [])
+      roleOps = rows2.filter((r) => r.role === 'OPS')
+        .map((r) => ({ id: r.user, name: r.user_name, dept: '运营部' }))
+      roleCloser = rows2.filter((r) => r.role === 'CLOSER')
+        .map((r) => ({ id: r.user, name: r.user_name, dept: '电销部' }))
+    } catch (e) { /* 非管理层 403，忽略 */ }
+
+    const isOps = (d) => (d || '').includes('运营')
+    const isCloser = (d) => {
+      const s = d || ''
+      return s.includes('电销') || s.includes('销售') || s.includes('成交')
+    }
+    const ops = dedupeUsers([...roleOps, ...staff.filter((u) => isOps(u.dept))])
+    const closers = dedupeUsers([...roleCloser, ...staff.filter((u) => isCloser(u.dept))])
+    opsUsers.value = ops.length ? ops : staff
+    closerUsers.value = closers.length ? closers : staff
+  } finally {
+    staffLoading.value = false
+  }
 }
 
 function openCreate() {
@@ -358,15 +535,76 @@ async function openFlows(row) {
   flows.value = await growthApi.leadFlows(row.id) || []
 }
 
+// ---------------- 线索编辑 / 删除（运营部线索池，2026-10-30） ----------------
+const editVisible = ref(false)
+const editing = ref(false)
+const editForm = reactive({
+  id: null, name: '', phone: '', intention: '', channel: null,
+  source_account_no: '', contact_type: 'PHONE', contact_value: '',
+  contact_person: '', customer_need: '', deal_amount: 0,
+})
+
+function openEdit(row) {
+  if (!row) return
+  Object.assign(editForm, {
+    id: row.id,
+    name: row.lead_name || '',
+    phone: row.lead_phone || '',
+    intention: row.lead_intention || '',
+    channel: row.channel || null,
+    source_account_no: row.source_account_no || '',
+    contact_type: row.contact_type || 'PHONE',
+    contact_value: row.contact_value || '',
+    contact_person: row.contact_person || '',
+    customer_need: row.customer_need || '',
+    deal_amount: Number(row.deal_amount || 0),
+  })
+  editVisible.value = true
+}
+
+async function submitEdit() {
+  if (!String(editForm.name || '').trim()) return ElMessage.warning('请填写客户姓名')
+  if (!String(editForm.contact_value || '').trim()) return ElMessage.warning('请填写联系方式')
+  editing.value = true
+  try {
+    const r = await growthApi.updateLead(editForm.id, { ...editForm })
+    ElMessage.success(r?.detail || '已保存修改')
+    editVisible.value = false
+    loadData()
+  } catch (e) { /* 拦截器已提示 */ } finally {
+    editing.value = false
+  }
+}
+
+async function removeLead(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除线索「${row.lead_name || '-'}」？删除后不再出现在线索池与公海，历史留痕保留。`,
+      '删除线索', { type: 'warning', confirmButtonText: '确认删除', confirmButtonClass: 'el-button--danger' }
+    )
+  } catch { return }
+  try {
+    await growthApi.deleteLead(row.id)
+    ElMessage.success('已删除')
+    loadData()
+  } catch (e) { /* 拦截器已提示 */ }
+}
+
 function openAssign(row) {
+  if (!row || row.id == null) return ElMessage.warning('请先选择要分配的线索')
   current.value = row
+  // 初值取当前归属，允许只改其中一项；分配目标必须来自真实员工名单
   assignForm.owner_id = row.ops_owner || null
   assignForm.closer_id = row.closer || null
   assignForm.remark = ''
   assignVisible.value = true
+  if (!opsUsers.value.length && !closerUsers.value.length) loadAssignUsers()
 }
 
 async function submitAssign() {
+  if (!current.value || current.value.id == null) {
+    return ElMessage.warning('请先选择要分配的线索')
+  }
   if (!assignForm.owner_id && !assignForm.closer_id) {
     return ElMessage.warning('请至少选择「归属运营」或「承接人」之一')
   }
@@ -376,10 +614,14 @@ async function submitAssign() {
     ElMessage.success('已分配，线索已移出公海并留痕')
     assignVisible.value = false
     loadData()
-  } finally {
+  } catch (e) { /* 拦截器已提示 */ } finally {
     assigning.value = false
   }
 }
+
+// 权限判定（角色接口 / 用户信息）完成后自动拉取人员名单，规避原先的异步竞态
+watch(canManage, (v) => { if (v && !opsUsers.value.length && !closerUsers.value.length) loadAssignUsers() },
+  { immediate: true })
 
 onMounted(() => {
   loadChannels()
@@ -401,4 +643,5 @@ onMounted(() => {
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .filter-bar { margin-bottom: 8px; }
 .muted { color: #909399; }
+.opt-dept { float: right; color: #a8abb2; font-size: 12px; }
 </style>

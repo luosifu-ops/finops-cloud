@@ -92,6 +92,7 @@ class AdDailyStat(models.Model):
 
     lead_count = models.IntegerField("留资线索数", default=0)
     valid_lead = models.IntegerField("有效线索数", default=0)
+    phone_added = models.IntegerField("电话数", default=0)
     wechat_added = models.IntegerField("加微数", default=0)
     visit_count = models.IntegerField("到店/邀约数", default=0)
     deal_count = models.IntegerField("成交数", default=0)
@@ -217,6 +218,16 @@ class ChannelBudget(BaseModel):
     lead_target = models.IntegerField("线索目标", default=0)
     deal_target = models.IntegerField("成交目标", default=0)
     remark = models.CharField("备注", max_length=300, blank=True)
+    # —— 预算审批（与迁移 0002_budget_approval 对齐）——
+    approve_status = models.CharField("审批状态", max_length=20,
+                                       choices=[("APPROVED", "已生效"), ("PENDING", "待审批"), ("REJECTED", "已驳回")],
+                                       db_index=True, default="APPROVED")
+    pending_budget = models.DecimalField("待审批预算", max_digits=12, decimal_places=2, null=True, blank=True)
+    pending_reason = models.CharField("申请理由", max_length=300, blank=True)
+    reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name="approved_budgets", verbose_name="审批人")
+    reviewed_at = models.DateTimeField("审批时间", null=True, blank=True)
+    reject_reason = models.CharField("驳回理由", max_length=300, blank=True)
 
     class Meta:
         verbose_name = "渠道预算"
@@ -244,3 +255,128 @@ class OpsDailyReport(BaseModel):
         verbose_name_plural = verbose_name
         unique_together = ("user", "date")
         ordering = ["-date"]
+
+
+# ============== 主播板块：获客日报 / 留资台账 / 直播投流 ==============
+
+class AnchorDailyReport(BaseModel):
+    """主播获客日报：五大板块（渠道付费投放/直播获客/本地推投流/AI获客/视频号小红书闲鱼获客）。
+    直播板块额外含直播专属字段；进房率/获客成本/留资成本自动计算。"""
+    CHANNEL = [
+        ("PAID", "渠道获客-付费投放"),
+        ("LIVE", "直播获客"),
+        ("LOCAL_PUSH", "本地推投流获客"),
+        ("AI", "AI获客"),
+        ("SOCIAL", "视频号/小红书/闲鱼获客"),
+    ]
+    channel_type = models.CharField("获客板块", max_length=20, choices=CHANNEL, default="PAID", db_index=True)
+    date = models.DateField("日期", db_index=True)
+    anchor_name = models.CharField("主播/账号", max_length=100, blank=True)
+    operator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name="anchor_daily_reports", verbose_name="跟进人/录入人")
+    # 通用字段
+    cost = models.DecimalField("消耗(元)", max_digits=12, decimal_places=2, default=0)
+    lead_count = models.IntegerField("线索数量", default=0)
+    valid_lead = models.IntegerField("有效线索", default=0)
+    acquisition_cost = models.DecimalField("获客成本(元)", max_digits=10, decimal_places=2, default=0)
+    account_setup = models.TextField("账户搭建", blank=True)
+    product_content = models.TextField("产品内容", blank=True)
+    # 直播专属字段
+    exposure = models.IntegerField("直播曝光人数", default=0)
+    enter_room = models.IntegerField("直播进房人数", default=0)
+    avg_online = models.DecimalField("平均在线人数", max_digits=10, decimal_places=2, default=0)
+    avg_stay = models.DecimalField("人均停留时长(分)", max_digits=8, decimal_places=2, default=0)
+    live_duration = models.DecimalField("直播时长(分)", max_digits=10, decimal_places=2, default=0)
+    live_cost = models.DecimalField("投流消耗(元)", max_digits=12, decimal_places=2, default=0)
+    live_lead = models.IntegerField("留资数", default=0)
+    live_valid_lead = models.IntegerField("有效留资数", default=0)
+    lead_cost = models.DecimalField("留资成本(元)", max_digits=10, decimal_places=2, default=0)
+    remark = models.TextField("备注", blank=True)
+
+    class Meta:
+        verbose_name = "主播获客日报"
+        verbose_name_plural = verbose_name
+        ordering = ["-date", "channel_type"]
+        unique_together = ("channel_type", "date", "operator", "anchor_name")
+
+    def __str__(self):
+        return f"{self.get_channel_type_display()}-{self.date}"
+
+    @property
+    def enter_rate(self):
+        """进房率 = 进房人数 / 曝光人数"""
+        if self.exposure:
+            return round(self.enter_room / self.exposure * 100, 2)
+        return 0
+
+
+class LeadLedger(BaseModel):
+    """客户留资明细台账（支持增删改查，录入后自动汇总到每日报表总留资）"""
+    CHANNEL = [
+        ("PAID", "渠道获客-付费投放"),
+        ("LIVE", "直播获客"),
+        ("LOCAL_PUSH", "本地推投流获客"),
+        ("AI", "AI获客"),
+        ("SOCIAL", "视频号/小红书/闲鱼获客"),
+        ("OTHER", "其他"),
+    ]
+    channel = models.CharField("渠道", max_length=20, choices=CHANNEL, default="LIVE", db_index=True)
+    date = models.DateField("日期", db_index=True)
+    customer_name = models.CharField("客户姓名", max_length=100)
+    contact = models.CharField("客户联系方式", max_length=100, blank=True)
+    need = models.TextField("客户需求", blank=True)
+    address = models.TextField("客户地址", blank=True)
+    follower = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name="led_follow_leads", verbose_name="跟进人员")
+    is_passed = models.BooleanField("客户是否通过", default=False)
+    detail = models.TextField("客户详情备注", blank=True)
+    operator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name="lead_ledgers", verbose_name="录入人")
+
+    class Meta:
+        verbose_name = "客户留资明细"
+        verbose_name_plural = verbose_name
+        ordering = ["-date", "-created_at"]
+
+    def __str__(self):
+        return f"{self.customer_name}-{self.date}"
+
+
+class AnchorAdStat(BaseModel):
+    """直播投流数据：短视频图文投流 / 直播间投流 两套分开统计"""
+    AD_TYPE = [
+        ("SHORT_VIDEO", "短视频图文投流"),
+        ("LIVE_ROOM", "直播间投流"),
+    ]
+    ad_type = models.CharField("投流类型", max_length=20, choices=AD_TYPE, default="SHORT_VIDEO", db_index=True)
+    date = models.DateField("日期", db_index=True)
+    platform = models.CharField("投放平台", max_length=50, blank=True)
+    operator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name="anchor_ad_stats", verbose_name="录入人")
+    cost = models.DecimalField("消耗金额(元)", max_digits=12, decimal_places=2, default=0)
+    impression = models.IntegerField("展示次数", default=0)
+    click = models.IntegerField("点击次数", default=0)
+    private_msg = models.IntegerField("私信咨询数", default=0)
+    lead_count = models.IntegerField("线索留资数", default=0)
+    remark = models.TextField("备注", blank=True)
+
+    class Meta:
+        verbose_name = "直播投流数据"
+        verbose_name_plural = verbose_name
+        ordering = ["-date", "ad_type"]
+
+    def __str__(self):
+        return f"{self.get_ad_type_display()}-{self.date}"
+
+    @property
+    def lead_cost(self):
+        """留资成本 = 消耗 / 线索留资数"""
+        if self.lead_count:
+            return round(float(self.cost) / self.lead_count, 2)
+        return 0
+
+    @property
+    def click_rate(self):
+        if self.impression:
+            return round(self.click / self.impression * 100, 2)
+        return 0

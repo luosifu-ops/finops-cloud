@@ -39,8 +39,16 @@ services:
       BRAND_SUBTITLE: "${BRAND_SUBTITLE:-代账公司 · 一体化智能管理平台}"
       ICP_BEIAN: "${ICP_BEIAN:-}"
       POLICE_BEIAN: "${POLICE_BEIAN:-}"
+      # 钉钉企业内部应用（HR 通讯录同步），留空则集成页显示未配置
+      DINGTALK_APP_KEY: "${DINGTALK_APP_KEY:-}"
+      DINGTALK_APP_SECRET: "${DINGTALK_APP_SECRET:-}"
+      DINGTALK_AGENT_ID: "${DINGTALK_AGENT_ID:-}"
       WX_OPEN_APPID: "${WX_OPEN_APPID:-}"
       WX_OPEN_SECRET: "${WX_OPEN_SECRET:-}"
+      # 微信小程序（企服管）：openid 绑定 / 微信一键登录 / 订阅消息（2026-10-31）
+      WX_MINI_APPID: "${WX_MINI_APPID:-}"
+      WX_MINI_SECRET: "${WX_MINI_SECRET:-}"
+      WX_MINI_ENABLED: "${WX_MINI_ENABLED:-False}"
       WX_SCAN_MOCK: "False"
       WECHAT_PAY_APPID: "${WECHAT_PAY_APPID:-}"
       WECHAT_PAY_MCH_ID: "${WECHAT_PAY_MCH_ID:-}"

@@ -11,16 +11,16 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 
 from apps.accounts.models import User
-from apps.common.permissions import visible_user_ids, IsManagerOrAbove, IsHR
-from apps.common.viewsets import ScopeModelViewSet
+from apps.common.permissions import visible_user_ids, IsManagerOrAbove, IsHR, is_boss
+from apps.common.viewsets import ScopeModelViewSet, BizScopeModelViewSet
 from .models import (
     Lead, Customer, Contract, CallRecord, FollowUp, SalesTarget, CommissionRule, SalaryRecord,
-    Streamer,
+    Streamer, CustomerTag,
 )
 from .serializers import (
     LeadSerializer, CustomerSerializer, ContractSerializer, CallRecordSerializer,
     FollowUpSerializer, SalesTargetSerializer, CommissionRuleSerializer, SalaryRecordSerializer,
-    StreamerSerializer,
+    StreamerSerializer, CustomerTagSerializer,
 )
 
 
@@ -83,16 +83,19 @@ def date_filter(qs, request, field, start_key="start_date", end_key="end_date"):
 
 
 def is_big_boss(user):
-    """老板/人事/超管：看全部数据"""
-    return user.is_superuser or user.role in ("BOSS", "HR")
+    """老板/超管：看全部经营数据。
+    2026-10-29 权限专项：HR 不再自动获得全公司业务数据。"""
+    return is_boss(user)
 
 
 # ---------------- 线索 ----------------
-class LeadViewSet(ScopeModelViewSet):
+class LeadViewSet(BizScopeModelViewSet):
     """销售线索"""
     queryset = Lead.objects.filter(is_deleted=False)
     serializer_class = LeadSerializer
     owner_field = "owner"
+    scope_by_department = True
+    log_module = "销售线索"
     search_fields = ["name", "phone", "company"]
     ordering_fields = ["created_at", "assigned_at", "dealt_at"]
 
@@ -116,8 +119,9 @@ class LeadViewSet(ScopeModelViewSet):
         return date_filter(qs, self.request, "created_at")
 
     def perform_create(self, serializer):
-        data = serializer.validated_data
-        if data.get("owner") is None and self.request.user.role == "EMPLOYEE":
+        # 2026-10-29：归属人为空时任何角色都回填本人（原来只回填员工，
+        # 主管建的数据没有负责人，本部门下属看不到、业绩也统计不到）
+        if serializer.validated_data.get("owner") is None:
             serializer.save(owner=self.request.user, created_by=self.request.user)
         else:
             serializer.save(created_by=self.request.user)
@@ -136,6 +140,11 @@ class LeadViewSet(ScopeModelViewSet):
                             status=status.HTTP_400_BAD_REQUEST)
         qs = Lead.objects.filter(id__in=ids, is_deleted=False)
         count = qs.update(owner=owner, assigned_by=request.user, status="ASSIGNED", assigned_at=timezone.now())
+        # 2026-10-30 增量：线索分配 → 自动发送站内消息通知被分配员工
+        from apps.common.services import notify_user
+        notify_user(owner, "您有新的线索分配",
+                    f"{request.user.display_name or request.user.username} 向您分配了 {count} 条线索，请及时跟进。",
+                    category="SYSTEM", link="/sales/followup")
         return Response({"code": 0, "msg": "ok", "data": {"count": count, "owner_id": owner.id}})
 
     @action(detail=True, methods=["post"])
@@ -171,6 +180,53 @@ class LeadViewSet(ScopeModelViewSet):
         lead.lost_reason = request.data.get("lost_reason", "")
         lead.save(update_fields=["status", "lost_reason"])
         return Response({"code": 0, "msg": "ok", "data": LeadSerializer(lead).data})
+
+    @action(detail=True, methods=["post"], url_path="return-pool")
+    def return_pool(self, request, pk=None):
+        """退回公海：清空归属人，状态回到待分配（主管/老板或线索归属人可操作）"""
+        lead = self.get_object()
+        u = request.user
+        if not (is_big_boss(u) or lead.owner_id == u.id or getattr(u, "role", "") == "MANAGER"):
+            return Response({"code": 1, "msg": "仅主管/老板或线索归属人可退回公海"},
+                            status=status.HTTP_403_FORBIDDEN)
+        reason = request.data.get("reason", "")
+        lead.owner = None
+        lead.assigned_by = None
+        lead.status = "NEW"
+        lead.assigned_at = None
+        if reason:
+            lead.remark = f"{lead.remark}\n退回公海原因：{reason}".strip()
+        lead.save(update_fields=["owner", "assigned_by", "status", "assigned_at", "remark"])
+        from apps.common.services import log_action
+        log_action(request, "RETURN", module="销售线索", obj=lead, detail=f"退回公海: {reason or '未填写'}")
+        return Response({"code": 0, "msg": "ok", "data": LeadSerializer(lead).data})
+
+    @action(detail=True, methods=["get"])
+    def timeline(self, request, pk=None):
+        """线索穿透详情：基础信息 + 流转时间线（创建/分配/跟进记录/成交/流失）"""
+        lead = self.get_object()
+        events = []
+        if lead.created_at:
+            events.append({"time": lead.created_at, "action": "创建", "who": lead.created_by.display_name if lead.created_by_id else "系统", "detail": f"来源 {lead.get_source_display()}，意向 {lead.intention or '未填写'}"})
+        if lead.assigned_at:
+            who = lead.assigned_by.display_name if lead.assigned_by_id else (lead.owner.display_name if lead.owner_id else "")
+            events.append({"time": lead.assigned_at, "action": "分配", "who": who, "detail": f"分配给 {lead.owner.display_name if lead.owner_id else '公海'}"})
+        followups = FollowUp.objects.filter(lead=lead, is_deleted=False).order_by("created_at")
+        for f in followups:
+            events.append({"time": f.created_at, "action": "跟进", "who": f.created_by.display_name if f.created_by_id else "",
+                           "detail": f"{f.get_way_display() if hasattr(f, 'get_way_display') else ''} {f.content or ''}".strip()})
+        if lead.dealt_at:
+            events.append({"time": lead.dealt_at, "action": "成交", "who": lead.owner.display_name if lead.owner_id else "", "detail": lead.remark[:200]})
+        if lead.status == "LOST":
+            events.append({"time": lead.updated_at, "action": "流失", "who": "", "detail": lead.lost_reason or "未填写原因"})
+        events.sort(key=lambda e: e["time"])
+        from apps.common.services import log_action
+        log_action(request, "OTHER", module="销售线索", obj=lead, detail="查看线索穿透详情")
+        data = LeadSerializer(lead).data
+        data["timeline"] = [
+            {**e, "time": e["time"].strftime("%Y-%m-%d %H:%M")} for e in events
+        ]
+        return Response({"code": 0, "msg": "ok", "data": data})
 
     @action(detail=False, methods=["get"])
     def my(self, request):
@@ -222,29 +278,42 @@ class LeadViewSet(ScopeModelViewSet):
 
 
 # ---------------- 客户 ----------------
-class CustomerViewSet(viewsets.ModelViewSet):
+class CustomerViewSet(BizScopeModelViewSet):
     """客户档案"""
     queryset = Customer.objects.filter(is_deleted=False)
     serializer_class = CustomerSerializer
+    # 客户归属：业务负责人 / 代账会计
+    owner_field = "owner"
+    scope_fields = ("owner", "accountant")
+    scope_by_department = True
+    log_module = "客户档案"
     search_fields = ["name", "phone", "contact", "short_name"]
     ordering_fields = ["created_at", "signed_at", "expire_at"]
 
     def get_queryset(self):
+        # 2026-10-29 修复：原来本方法被重复定义两次，后一个覆盖了前一个，
+        # 导致客户档案的数据隔离彻底失效（任何员工都能看到全部客户）。
+        # 现合并为单一实现：先走父类范围收窄，再做字段/标签筛选。
         qs = super().get_queryset()
-        user = self.request.user
-        if not is_big_boss(user):
-            ids = list(visible_user_ids(user))
-            qs = qs.filter(Q(owner__in=ids) | Q(accountant__in=ids))
-        return apply_filters(qs, self.request, {
+        qs = apply_filters(qs, self.request, {
             "status": "status",
             "owner": "owner_id",
             "accountant": "accountant_id",
             "level": "level",
         })
+        # 客户标签筛选（2026-10-29 标签体系）：?tag=<id> 或 ?tag_name=<标签名>
+        tag = self.request.query_params.get("tag")
+        if tag:
+            qs = qs.filter(tags__id=tag).distinct()
+        tag_name = self.request.query_params.get("tag_name")
+        if tag_name:
+            qs = qs.filter(tags__name=tag_name).distinct()
+        return qs
 
     def perform_create(self, serializer):
-        data = serializer.validated_data
-        if data.get("owner") is None and self.request.user.role == "EMPLOYEE":
+        # 2026-10-29：归属人为空时任何角色都回填本人（原来只回填员工，
+        # 主管建的数据没有负责人，本部门下属看不到、业绩也统计不到）
+        if serializer.validated_data.get("owner") is None:
             serializer.save(owner=self.request.user, created_by=self.request.user)
         else:
             serializer.save(created_by=self.request.user)
@@ -309,8 +378,10 @@ class ContractViewSet(ScopeModelViewSet):
         else:
             qs = super().get_queryset()
             # 阶段三：主管分配出去的合同，分配人保留可见+可编辑权限
+            # 2026-10-28 修复 500：distinct 查询不可与非 distinct 查询合并，两侧先统一 distinct
             if hasattr(qs.model, "assigned_by"):
-                qs = (qs | super(ScopeModelViewSet, self).get_queryset().filter(assigned_by=user)).distinct()
+                assigned_qs = super(ScopeModelViewSet, self).get_queryset().filter(assigned_by=user).distinct()
+                qs = (qs.distinct() | assigned_qs).distinct()
         qs = apply_filters(qs, self.request, {
             "status": "status",
             "biz_type": "biz_type",
@@ -514,11 +585,13 @@ class ContractViewSet(ScopeModelViewSet):
 
 
 # ---------------- 通话记录 ----------------
-class CallRecordViewSet(ScopeModelViewSet):
+class CallRecordViewSet(BizScopeModelViewSet):
     """通话记录"""
     queryset = CallRecord.objects.all()
     serializer_class = CallRecordSerializer
     owner_field = "user"
+    scope_by_department = True
+    log_module = "通话记录"
     ordering_fields = ["created_at", "duration"]
 
     def get_queryset(self):
@@ -564,11 +637,13 @@ class CallRecordViewSet(ScopeModelViewSet):
 
 
 # ---------------- 跟进记录 ----------------
-class FollowUpViewSet(ScopeModelViewSet):
+class FollowUpViewSet(BizScopeModelViewSet):
     """跟进记录"""
     queryset = FollowUp.objects.filter(is_deleted=False)
     serializer_class = FollowUpSerializer
     owner_field = "user"
+    scope_by_department = True
+    log_module = "跟进记录"
     search_fields = ["content", "next_action"]
     ordering_fields = ["created_at", "next_at"]
 
@@ -814,12 +889,13 @@ class SalaryViewSet(viewsets.ModelViewSet):
 
 
 # ---------------- 主播 ----------------
-class StreamerViewSet(ScopeModelViewSet):
+class StreamerViewSet(BizScopeModelViewSet):
     """主播（直播获客/带货）：负责人与部门维度做数据隔离"""
     queryset = Streamer.objects.filter(is_deleted=False)
     serializer_class = StreamerSerializer
     owner_field = "manager"
     scope_by_department = True
+    log_module = "主播管理"
     search_fields = ["name", "real_name", "account", "phone"]
     ordering_fields = ["created_at", "fans_count", "gmv", "live_count"]
 
@@ -838,3 +914,31 @@ class StreamerViewSet(ScopeModelViewSet):
             serializer.save(manager=self.request.user, created_by=self.request.user)
         else:
             serializer.save(created_by=self.request.user)
+
+
+class CustomerTagViewSet(viewsets.ModelViewSet):
+    """客户标签 CRUD（2026-10-29 Boss 专项：客户档案标签分级）
+
+    标签是公司共享字典，不按个人隔离（不继承 ScopeModelViewSet）；支持启用/停用与排序。
+    """
+    queryset = CustomerTag.objects.filter(is_deleted=False)
+    serializer_class = CustomerTagSerializer
+    log_module = "客户标签"
+    search_fields = ["name"]
+    ordering_fields = ["sort", "id"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.query_params.get("active") == "1":
+            qs = qs.filter(is_active=True)
+        return qs
+
+    def perform_create(self, serializer):
+        inst = serializer.save(created_by=self.request.user)
+        from apps.common.services import log_action
+        log_action(self.request, "CREATE", module="客户标签", obj=inst, detail=f"新建标签 {inst.name}")
+
+    def perform_destroy(self, instance):
+        from apps.common.services import log_action
+        log_action(self.request, "DELETE", module="客户标签", obj=instance)
+        instance.soft_delete()

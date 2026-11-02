@@ -36,6 +36,7 @@
             <div class="card-header">
               <span>线索转化分析与跟进明细</span>
               <div>
+                <el-button type="primary" @click="openCreate">+ 录入线索</el-button>
                 <el-button @click="loadData">刷新</el-button>
               </div>
             </div>
@@ -97,9 +98,10 @@
                 <el-tag v-else type="info" size="small">未成交</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="160" fixed="right">
+            <el-table-column label="操作" width="190" fixed="right">
               <template #default="{ row }">
                 <el-button link type="primary" @click="openFollow(row)">跟进</el-button>
+                <el-button v-if="canCreate" link type="warning" @click="openEditLead(row)">编辑</el-button>
                 <el-button link type="info" @click="penetrate(row.ops_owner || row.closer, row.ops_owner_name || row.closer_name)">穿透</el-button>
               </template>
             </el-table-column>
@@ -155,10 +157,10 @@
       </el-tab-pane>
     </el-tabs>
 
-    <!-- 录入线索 -->
-    <el-dialog v-model="createVisible" title="录入线索（多平台）" width="680px">
+    <!-- 录入/编辑线索 -->
+    <el-dialog v-model="createVisible" :title="editingLeadId ? '编辑线索（录入纠错）' : '录入线索（多平台）'" width="680px">
       <el-form :model="form" label-width="110px">
-        <el-alert type="info" :closable="false" show-icon title="归属运营人自动取当前登录人" style="margin-bottom:12px" />
+        <el-alert v-if="!editingLeadId" type="info" :closable="false" show-icon title="归属运营人自动取当前登录人" style="margin-bottom:12px" />
         <el-form-item label="来源平台" required>
           <el-select v-model="form.channel" placeholder="选择投放平台" style="width:100%">
             <el-option v-for="c in channels" :key="c.id" :label="c.name" :value="c.id" />
@@ -185,14 +187,12 @@
         <el-form-item label="获客成本(元)"><el-input-number v-model="form.acquisition_cost" :min="0" :precision="2" style="width:200px" /></el-form-item>
         <el-form-item label="签单金额(元)"><el-input-number v-model="form.deal_amount" :min="0" :precision="2" style="width:200px" /></el-form-item>
         <el-form-item label="指定成交师">
-          <el-select v-model="form.closer" placeholder="不指定则系统按负载自动流转" clearable style="width:100%">
-            <el-option v-for="u in users" :key="u.id" :label="u.display_name || u.username" :value="u.id" />
-          </el-select>
+          <PersonSelect v-model="form.closer" placeholder="不指定则系统按负载自动流转" />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="createVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitCreate">提交并流转</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitCreate">{{ editingLeadId ? '保存修改' : '提交并流转' }}</el-button>
       </template>
     </el-dialog>
 
@@ -309,6 +309,7 @@ import { ElMessage } from 'element-plus'
 import { growthApi } from '@/api/growth'
 import { orgApi } from '@/api/index'
 import { useUserStore } from '@/store/user'
+import PersonSelect from '@/components/PersonSelect.vue'
 
 const store = useUserStore()
 const tab = ref('list')
@@ -338,7 +339,8 @@ const penData = ref(null)
 const penName = ref('')
 const penLoading = ref(false)
 
-const canCreate = computed(() => store.isBoss || store.isManager || store.isHR || store.isSuper)
+// 录入/编辑权限（2026-11-02 与主账号对齐）：所有登录账号均可录入线索，隔离不变
+const canCreate = computed(() => !store.isDemo)
 
 function num(v) {
   const n = Number(v || 0)
@@ -366,10 +368,34 @@ async function loadData() {
 function resetFilter() { filters.channel = ''; filters.account = ''; loadData() }
 
 function openCreate() {
+  editingLeadId.value = null
   Object.assign(form, {
     channel: channels.value[0]?.id || '', source_account_no: '', name: '', phone: '',
     wechat: '', company: '', intention: '', customer_need: '', contact_person: '',
     acquisition_cost: 0, deal_amount: 0, closer: null, contact_type: 'PHONE'
+  })
+  createVisible.value = true
+}
+
+// 2026-10-30 增量：线索录入出错后可编辑修改（复用录入弹窗，PATCH 回写）
+const editingLeadId = ref(null)
+function openEditLead(row) {
+  editingLeadId.value = row.id
+  const cv = row.contact_value || ''
+  Object.assign(form, {
+    channel: row.channel ?? '',
+    source_account_no: row.source_account_no || '',
+    name: row.lead_name || '',
+    phone: (row.contact_type === 'PHONE' ? cv : (row.lead_phone || '')),
+    wechat: (row.contact_type === 'WECHAT' ? cv : ''),
+    company: row.company_name || '',
+    intention: row.intention || '',
+    customer_need: row.customer_need || '',
+    contact_person: row.contact_person || '',
+    acquisition_cost: Number(row.acquisition_cost || 0),
+    deal_amount: Number(row.deal_amount || 0),
+    closer: row.closer ?? null,
+    contact_type: row.contact_type || 'PHONE'
   })
   createVisible.value = true
 }
@@ -381,8 +407,18 @@ async function submitCreate() {
   if (!form.phone && !form.wechat) return ElMessage.warning('电话与微信至少填一项')
   submitting.value = true
   try {
-    await growthApi.createLead({ ...form, acquisition_cost: form.acquisition_cost || 0, deal_amount: form.deal_amount || 0 })
-    ElMessage.success('录入成功，已自动流转')
+    if (editingLeadId.value) {
+      await growthApi.updateLead(editingLeadId.value, {
+        ...form,
+        contact_value: form.contact_type === 'PHONE' ? form.phone : form.wechat,
+        acquisition_cost: form.acquisition_cost || 0,
+        deal_amount: form.deal_amount || 0
+      })
+      ElMessage.success('已保存修改')
+    } else {
+      await growthApi.createLead({ ...form, acquisition_cost: form.acquisition_cost || 0, deal_amount: form.deal_amount || 0 })
+      ElMessage.success('录入成功，已自动流转')
+    }
     createVisible.value = false
     loadData()
   } finally { submitting.value = false }

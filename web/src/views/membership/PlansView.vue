@@ -11,7 +11,12 @@
           <div class="plan-price">
             <span class="cur">¥</span><span class="num">{{ p.price_monthly }}</span><span class="per">/月</span>
           </div>
-          <div class="plan-year text-muted">年付 ¥{{ p.price_yearly }}（约省 {{ yearSave(p) }}%）</div>
+          <div class="plan-year text-muted">
+            <template v-if="Number(p.price_monthly) > 0">
+              年付 ¥{{ p.price_yearly }}（约省 {{ yearSave(p) }}%）
+            </template>
+            <template v-else>永久免费 · 不限时长</template>
+          </div>
           <ul class="plan-feats">
             <li v-for="(f, i) in (p.features || [])" :key="i"><span class="tick">✓</span>{{ f }}</li>
           </ul>
@@ -39,8 +44,10 @@ function unwrap(r) {
   return []
 }
 const yearSave = (p) => {
-  if (!p.price_monthly || !p.price_yearly) return 0
-  return Math.max(0, Math.round((1 - p.price_yearly / (p.price_monthly * 12)) * 100))
+  const m = Number(p.price_monthly) || 0
+  const y = Number(p.price_yearly) || 0
+  if (!m || !y) return 0
+  return Math.max(0, Math.round((1 - y / (m * 12)) * 100))
 }
 // 选择套餐后跳转订阅支付页，并预选该套餐（支付方式/微信支付宝跳转在订阅页处理）
 const choose = (p) => router.push({ path: '/membership/subscribe', query: { plan: p.id } })
@@ -50,17 +57,59 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.plan-card { position: relative; border-radius: 16px; margin-bottom: 16px; }
-.plan-card.hot { border: 1px solid var(--primary); }
-.hot-tag { position: absolute; top: 12px; right: 12px; }
-.plan-name { font-size: 17px; font-weight: 700; }
-.plan-price { margin: 10px 0 2px; color: var(--primary); }
-.plan-price .cur { font-size: 16px; }
-.plan-price .num { font-size: 30px; font-weight: 800; }
-.plan-price .per { font-size: 13px; color: var(--text-sub); margin-left: 4px; }
-.plan-year { font-size: 12px; margin-bottom: 12px; }
-.plan-feats { list-style: none; padding: 0; margin: 0 0 16px; min-height: 120px; }
-.plan-feats li { font-size: 13px; color: var(--text-main); padding: 5px 0; display: flex; gap: 8px; }
-.tick { color: var(--success); font-weight: 700; }
-.plan-btn { width: 100%; }
+/* 套餐卡：等高 + 按钮吸底，四张卡底边严格对齐 */
+:deep(.el-row) { align-items: stretch; }
+:deep(.el-col) { display: flex; }
+.plan-card {
+  position: relative; border-radius: var(--radius); margin-bottom: 16px;
+  width: 100%; display: flex; flex-direction: column;
+  transition: box-shadow var(--dur-base) var(--ease-out),
+              transform var(--dur-base) var(--ease-out),
+              border-color var(--dur-base) var(--ease-out);
+}
+.plan-card:hover { transform: translateY(-3px); }
+.plan-card :deep(.el-card__body) {
+  flex: 1; display: flex; flex-direction: column; padding: 24px 22px;
+}
+.plan-card.hot {
+  border: 1px solid var(--primary-200);
+  box-shadow: 0 4px 10px -4px rgba(42, 79, 212, 0.14), 0 20px 44px -20px rgba(42, 79, 212, 0.30) !important;
+}
+.hot-tag {
+  position: absolute; top: 18px; right: 18px;
+  border-radius: 6px;
+  background: linear-gradient(150deg, #4a6ff0, #1d3aa8) !important;
+  border: none !important;
+  color: #fff !important;
+  letter-spacing: 0.06em; font-weight: 650;
+  box-shadow: 0 4px 12px -6px rgba(42, 79, 212, 0.6);
+}
+.plan-name {
+  font-size: 16px; font-weight: 650; letter-spacing: -0.2px;
+  color: var(--text-main);
+}
+.plan-price { margin: 14px 0 2px; color: var(--primary-700); display: flex; align-items: baseline; }
+.plan-price .cur { font-size: 16px; font-weight: 600; margin-right: 1px; }
+.plan-price .num {
+  font-size: 32px; font-weight: 750; letter-spacing: -1.2px;
+  font-variant-numeric: tabular-nums;
+}
+.plan-price .per { font-size: 12.5px; color: var(--text-weak); margin-left: 5px; font-weight: 500; }
+.plan-year {
+  font-size: 11.5px; margin-bottom: 18px;
+  padding-bottom: 16px; border-bottom: 1px solid var(--border-soft);
+}
+.plan-feats { list-style: none; padding: 0; margin: 0 0 18px; flex: 1; }
+.plan-feats li {
+  font-size: 13px; color: var(--text-sub); padding: 6px 0;
+  display: flex; gap: 9px; line-height: 1.5;
+}
+.tick {
+  color: var(--success); font-weight: 700; flex: none;
+  font-size: 12px; margin-top: 1px;
+}
+.plan-btn {
+  width: 100%; margin-top: auto; height: 40px;
+  border-radius: var(--radius-sm); font-weight: 650; letter-spacing: 0.04em;
+}
 </style>

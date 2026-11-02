@@ -5,14 +5,13 @@ from apps.common.models import BaseModel
 
 
 class Department(BaseModel):
-    CODE_CHOICES = [
-        ("SALES", "电销部"),
-        ("ACCOUNT", "会计部"),
-        ("OPS", "运营部"),
-        ("MGMT", "管理层"),
-    ]
+    # 2026-10-28 放开：原 code 为 4 个固定枚举，导致无法新增自定义部门；
+    # 现改为自由编码，SALES/ACCOUNT/OPS/MGMT 四个保留为业务代码（菜单分组/数据权限依赖它们，不可占用）
+    RESERVED_CODES = ["SALES", "ACCOUNT", "OPS", "MGMT"]
     name = models.CharField("部门名称", max_length=50)
-    code = models.CharField("部门编码", max_length=20, choices=CODE_CHOICES, unique=True)
+    code = models.CharField(
+        "部门编码", max_length=20, unique=True,
+        help_text="业务编码，如 SALES/ACCOUNT/OPS/MGMT；自定义部门可用如 FIN/RISK 等")
     leader = models.ForeignKey(
         "User", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="led_departments", verbose_name="部门负责人",
@@ -144,6 +143,36 @@ class User(AbstractUser):
     def __str__(self):
         return f"{self.get_full_name() or self.username}"
 
+    # ---------- 员工编号（工号）自动生成 ----------
+    # 规则：EMP + 4 位序号（EMP0001 起），按库中现有最大号递增；
+    # 生成逻辑放在 save() 里，保证「新增员工 / 批量导入 / 入职审批 / 创建账号」等
+    # 所有入口都会自动带号，避免某条链路漏号导致列表出现空工号。
+    EMPLOYEE_NO_PREFIX = "EMP"
+
+    @classmethod
+    def next_employee_no(cls):
+        """取下一个可用员工编号（不改库，仅计算）"""
+        prefix = cls.EMPLOYEE_NO_PREFIX
+        max_no = 0
+        rows = cls.objects.filter(
+            employee_no__startswith=prefix).values_list("employee_no", flat=True)
+        for no in rows:
+            tail = str(no or "")[len(prefix):]
+            if tail.isdigit():
+                max_no = max(max_no, int(tail))
+        return f"{prefix}{max_no + 1:04d}"
+
+    def save(self, *args, **kwargs):
+        if not self.employee_no:
+            if self.pk:
+                # 编辑保存时若前端把工号清空，沿用库中已有编号，避免"改一次换一个号"
+                prev = type(self).objects.filter(pk=self.pk).values_list(
+                    "employee_no", flat=True).first()
+                self.employee_no = prev or type(self).next_employee_no()
+            else:
+                self.employee_no = type(self).next_employee_no()
+        super().save(*args, **kwargs)
+
     @property
     def display_name(self):
         return self.get_full_name() or self.username
@@ -271,6 +300,9 @@ class EntryApplication(BaseModel):
     applicant_name = models.CharField("申请人姓名", max_length=50)
     phone = models.CharField("联系电话", max_length=20, blank=True, default="")
     id_card_no = models.CharField("身份证号", max_length=30, blank=True, default="")
+    # 员工申请时自设登录密码（只存哈希，永不回传）。审核通过直接作为账号初始密码，
+    # 废除历史上"全员统一初始密码 finops123456"的做法（2026-10-28 Boss 体检指示）。
+    password_hash = models.CharField("登录密码(哈希)", max_length=128, blank=True, default="")
     proposed_department = models.ForeignKey(
         Department, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="entry_applications", verbose_name="意向部门")

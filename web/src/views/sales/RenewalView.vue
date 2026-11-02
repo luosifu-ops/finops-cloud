@@ -104,10 +104,10 @@ const summary = computed(() => {
   const d60 = list.value.filter(x => x.days <= 60).length
   const urgent = list.value.filter(x => x.days <= 15).length
   return [
-    { label: '窗口内到期', value: total + ' 户', sub: `近 ${winDays.value} 天`, color: '#2f6fed' },
-    { label: '15天内紧急', value: urgent + ' 户', sub: '需立即跟进', color: '#d93026' },
-    { label: '30天内', value: d30 + ' 户', sub: '重点续费', color: '#d9822b' },
-    { label: '60天内', value: d60 + ' 户', sub: '提前铺垫', color: '#0f9960' }
+    { label: '窗口内到期', value: total + ' 户', sub: `近 ${winDays.value} 天`, color: '#2a4fd4' },
+    { label: '15天内紧急', value: urgent + ' 户', sub: '需立即跟进', color: '#c3372c' },
+    { label: '30天内', value: d30 + ' 户', sub: '重点续费', color: '#c07a12' },
+    { label: '60天内', value: d60 + ' 户', sub: '提前铺垫', color: '#12865a' }
   ]
 })
 
@@ -141,7 +141,7 @@ const renderFunnel = (data) => {
   const items = (data || []).map(d => ({ name: d.name, value: d.count }))
   chart.setOption({
     tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-    color: ['#2f6fed', '#4a86ff', '#8ab4f8', '#d9822b', '#0f9960'],
+    color: ['#2a4fd4', '#4a86ff', '#8ab4f8', '#c07a12', '#12865a'],
     series: [{
       type: 'funnel', top: 20, bottom: 20, left: '8%', width: '84%',
       minSize: '20%', maxSize: '100%', sort: 'descending', gap: 2,
@@ -163,7 +163,7 @@ onBeforeUnmount(() => { window.removeEventListener('resize', onResize); chart &&
 .stat-card .value { font-size: 24px; }
 .card-tip { font-size: 12px; font-weight: 400; color: var(--text-sub); margin-left: 8px; }
 .days { font-weight: 700; }
-.days.urgent { color: #d93026; }
-.days.warn { color: #d9822b; }
-.days.normal { color: #0f9960; }
+.days.urgent { color: #c3372c; }
+.days.warn { color: #c07a12; }
+.days.normal { color: #12865a; }
 </style>

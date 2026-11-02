@@ -69,9 +69,7 @@
     <el-dialog v-model="formVisible" :title="editing ? '编辑角色' : '分配新角色'" width="520px">
       <el-form :model="form" label-width="100px">
         <el-form-item label="员工" required>
-          <el-select v-model="form.user" placeholder="选择员工" filterable :disabled="editing" style="width:100%">
-            <el-option v-for="u in users" :key="u.id" :label="u.display_name" :value="u.id" />
-          </el-select>
+          <PersonSelect v-model="form.user" placeholder="选择员工" :disabled="true" />
         </el-form-item>
         <el-form-item label="角色" required>
           <el-select v-model="form.role" placeholder="选择角色" style="width:100%">
@@ -108,6 +106,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { growthApi } from '@/api/growth'
 import axios from 'axios'
+import PersonSelect from '@/components/PersonSelect.vue'
 
 const list = ref([])
 const users = ref([])

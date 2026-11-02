@@ -24,6 +24,14 @@
           </div>
           <div class="ec-foot">
             <span class="ec-try">我已考 {{ myTried(ex.id) }}/{{ ex.max_attempts }} 次</span>
+            <template v-if="user.isHR || user.isBoss">
+              <el-button size="small" @click="openEditExam(ex)">编辑</el-button>
+              <el-button size="small" type="danger" plain @click="removeExam(ex)">删除</el-button>
+            </template>
+            <el-button v-else type="primary" size="small" :disabled="!canStart(ex)" @click="startExam(ex)">开始考试</el-button>
+          </div>
+          <div v-if="user.isHR || user.isBoss" class="ec-foot" style="margin-top:6px">
+            <span class="ec-try">状态：{{ { DRAFT: '草稿', PUBLISHED: '已发布', CLOSED: '已结束' }[ex.status] || ex.status }}</span>
             <el-button type="primary" size="small" :disabled="!canStart(ex)" @click="startExam(ex)">开始考试</el-button>
           </div>
           <el-tag v-if="!canStart(ex)" size="small" type="info" effect="plain" class="ec-disabled">
@@ -97,8 +105,8 @@
       </template>
     </el-dialog>
 
-    <!-- 新建考试 -->
-    <el-dialog v-model="createVis" title="新建考试" width="560px" @closed="resetCreate">
+    <!-- 新建/编辑考试 -->
+    <el-dialog v-model="createVis" :title="editingExamId ? '编辑考试' : '新建考试'" width="560px" @closed="resetCreate">
       <el-form :model="cf" label-width="92px">
         <el-form-item label="考试名称" required><el-input v-model="cf.title" /></el-form-item>
         <el-form-item label="说明"><el-input v-model="cf.description" type="textarea" :rows="2" /></el-form-item>
@@ -127,7 +135,7 @@
       </el-form>
       <template #footer>
         <el-button @click="createVis = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="createExam">创建</el-button>
+        <el-button type="primary" :loading="saving" @click="createExam">{{ editingExamId ? '保存修改' : '创建' }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -135,7 +143,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { onboardingApi } from '@/api'
 import { useUserStore } from '@/store/user'
@@ -169,7 +177,8 @@ async function load() {
   loading.value = true
   try {
     const [e, r, b] = await Promise.all([
-      onboardingApi.exams({ status: 'PUBLISHED' }),
+      // HR/老板拉全量（含草稿/已结束），便于编辑管理；普通员工只看已发布
+      user.isHR || user.isBoss ? onboardingApi.exams({ page_size: 200 }) : onboardingApi.exams({ status: 'PUBLISHED' }),
       onboardingApi.myExamRecords(),
       user.isHR || user.isBoss ? onboardingApi.questionBanks() : Promise.resolve(null)
     ])
@@ -239,17 +248,48 @@ function closePaper() { clearInterval(timer) }
 const createVis = ref(false)
 const saving = ref(false)
 const cf = reactive({ title: '', description: '', bank: null, question_count: 20, total_score: 100, pass_score: 60, duration: 60, max_attempts: 3, status: 'PUBLISHED', allow_retake: true, start_at: '', end_at: '' })
-function openCreate() { createVis.value = true }
-function resetCreate() { Object.assign(cf, { title: '', description: '', bank: null, question_count: 20, total_score: 100, pass_score: 60, duration: 60, max_attempts: 3, status: 'PUBLISHED', allow_retake: true, start_at: '', end_at: '' }) }
+const editingExamId = ref(null)
+function openCreate() { editingExamId.value = null; createVis.value = true }
+function resetCreate() { Object.assign(cf, { title: '', description: '', bank: null, question_count: 20, total_score: 100, pass_score: 60, duration: 60, max_attempts: 3, status: 'PUBLISHED', allow_retake: true, start_at: '', end_at: '' }); editingExamId.value = null }
+
+// 2026-10-31 增量：编辑考试（回显全部字段，时间格式转 YYYY-MM-DD HH:mm:ss）
+function openEditExam(ex) {
+  editingExamId.value = ex.id
+  const t = (v) => v ? String(v).replace('T', ' ').slice(0, 19) : ''
+  Object.assign(cf, {
+    title: ex.title || '', description: ex.description || '', bank: ex.bank || null,
+    question_count: ex.question_count || 20, total_score: ex.total_score || 100,
+    pass_score: ex.pass_score ?? 60, duration: ex.duration || 60,
+    max_attempts: ex.max_attempts || 1, status: ex.status || 'PUBLISHED',
+    allow_retake: !!ex.allow_retake, start_at: t(ex.start_at), end_at: t(ex.end_at),
+  })
+  createVis.value = true
+}
+
 async function createExam() {
   if (!cf.title) return ElMessage.warning('请填写考试名称')
   saving.value = true
   try {
-    await onboardingApi.createExam({ ...cf })
-    ElMessage.success('已创建考试')
+    if (editingExamId.value) {
+      await onboardingApi.updateExam(editingExamId.value, { ...cf })
+      ElMessage.success('已保存修改')
+    } else {
+      await onboardingApi.createExam({ ...cf })
+      ElMessage.success('已创建考试')
+    }
     createVis.value = false
     load()
-  } catch (e) { ElMessage.error('创建失败') } finally { saving.value = false }
+  } catch (e) { ElMessage.error(editingExamId.value ? '保存失败' : '创建失败') } finally { saving.value = false }
+}
+
+// 2026-10-31 增量：删除考试
+async function removeExam(ex) {
+  try { await ElMessageBox.confirm(`确认删除考试「${ex.title}」？已产生的考试记录将保留。`, '删除考试', { type: 'warning', confirmButtonText: '确认删除' }) } catch { return }
+  try {
+    await onboardingApi.deleteExam(ex.id)
+    ElMessage.success('已删除')
+    load()
+  } catch (e) { ElMessage.error('删除失败') }
 }
 
 onMounted(load)
@@ -273,7 +313,7 @@ onBeforeUnmount(() => clearInterval(timer))
 .ep-head { display: flex; align-items: center; gap: 14px; }
 .ep-title { font-weight: 700; }
 .ep-timer { font-size: 16px; font-weight: 700; color: var(--success); }
-.ep-timer.danger { color: #d93026; }
+.ep-timer.danger { color: #c3372c; }
 .ep-body { padding: 8px 4px; }
 .ep-q { padding: 14px 0; border-bottom: 1px solid var(--border); scroll-margin-top: 16px; }
 .ep-q-stem { margin-bottom: 10px; line-height: 1.6; }

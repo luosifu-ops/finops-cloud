@@ -58,6 +58,27 @@ def can_view_all(user):
     return bool(r and r.can_view_all)
 
 
+def dept_scope_ids(user):
+    """部门/小组维度的可见用户 ID；不适用（员工）时返回 None"""
+    return _dept_user_ids(user)
+
+
+def leads_scope_all(user):
+    """线索数据（含线索流转记录）是否全公司可见
+
+    【2026-10-30 权限专项 · Boss 需求】部门主管只能看本部门数据。
+    can_view_all 仍然保留给「增长中心配置类功能」（渠道/角色/派单）使用，
+    但**线索这类业务数据**只有老板/总经理（或 GrowthRole 显式授权）才看全量，
+    部门主管 / 组长回落到「本部门 / 本组」范围。
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser or getattr(user, "role", None) == "BOSS":
+        return True
+    r = growth_role_of(user)
+    return bool(r and r.can_view_all)
+
+
 def is_ops(user):
     r = growth_role_of(user)
     return bool(r and r.role == "OPS")
@@ -91,9 +112,9 @@ def is_field_manager(user):
 def scope_leads(qs, user):
     """按权限过滤线索扩展（LeadExt）查询集
 
-    优先级：全量（老板/管理层）> 部门维度（经理/组长）> 职能角色（运营/成交师）> 个人
+    优先级：全量（老板/总经理）> 部门维度（经理/组长）> 职能角色（运营/成交师）> 个人
     """
-    if can_view_all(user):
+    if leads_scope_all(user):
         return qs
 
     # 1) 部门 / 团队维度

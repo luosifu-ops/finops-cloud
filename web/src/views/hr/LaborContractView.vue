@@ -26,20 +26,19 @@
           <span v-else style="color:#909399">无</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="150" fixed="right">
+      <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
           <el-button v-if="row.status==='ACTIVE'" link type="primary" @click="renew(row)">续签</el-button>
+          <el-button link type="warning" @click="openEdit(row)">修改</el-button>
           <el-button link type="danger" @click="remove(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="visible" title="新增劳动合同" width="600px" @closed="resetForm">
+    <el-dialog v-model="visible" :title="editingId ? '修改劳动合同' : '新增劳动合同'" width="600px" @closed="resetForm">
       <el-form :model="form" label-width="100px">
         <el-form-item label="员工" required>
-          <el-select v-model="form.user" filterable placeholder="选择员工" style="width:100%">
-            <el-option v-for="u in users" :key="u.id" :label="u.display_name||u.username" :value="u.id" />
-          </el-select>
+          <PersonSelect v-model="form.user" placeholder="选择员工" />
         </el-form-item>
         <el-form-item label="合同类型">
           <el-select v-model="form.contract_type" style="width:100%">
@@ -61,7 +60,7 @@
       </el-form>
       <template #footer>
         <el-button @click="visible=false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="submit">保 存</el-button>
+        <el-button type="primary" :loading="saving" @click="submit">{{ editingId ? '保存修改' : '保 存' }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -71,6 +70,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import http from '@/api'
+import PersonSelect from '@/components/PersonSelect.vue'
 
 const list = ref([])
 const users = ref([])
@@ -80,6 +80,7 @@ const visible = ref(false)
 const saving = ref(false)
 const pendingFile = ref(null)
 const form = ref({ user: null, contract_type: 'FULLTIME', contract_no: '', signed_date: '', start_date: '', end_date: '', remark: '' })
+const editingId = ref(null)
 
 async function loadUsers() {
   try { const r = await http.get('/accounts/users/', { params: { page_size: 500 } }); users.value = r?.results || [] } catch (e) {}
@@ -95,8 +96,24 @@ async function reload() {
 async function loadExpiring() {
   try { const r = await http.get('/hr/labor-contracts/expiring/', { params: { days: 30 } }); const b = r?.data || r; expiring.value = Array.isArray(b) ? b : (b?.results || []) } catch (e) {}
 }
-function resetForm() { form.value = { user: null, contract_type: 'FULLTIME', contract_no: '', signed_date: '', start_date: '', end_date: '', remark: '' }; pendingFile.value = null }
+function resetForm() { form.value = { user: null, contract_type: 'FULLTIME', contract_no: '', signed_date: '', start_date: '', end_date: '', remark: '' }; pendingFile.value = null; editingId.value = null }
 function openCreate() { resetForm(); visible.value = true }
+
+// 2026-10-31 增量：修改合同登记信息（回显，不含附件；如需换附件在编辑时重新选择）
+function openEdit(row) {
+  resetForm()
+  editingId.value = row.id
+  form.value = {
+    user: row.user || null,
+    contract_type: row.contract_type || 'FULLTIME',
+    contract_no: row.contract_no || '',
+    signed_date: row.signed_date || '',
+    start_date: row.start_date || '',
+    end_date: row.end_date || '',
+    remark: row.remark || '',
+  }
+  visible.value = true
+}
 function onFile(file) { pendingFile.value = file.raw }
 async function submit() {
   if (!form.value.user) return ElMessage.warning('请选择员工')
@@ -105,8 +122,13 @@ async function submit() {
     const fd = new FormData()
     for (const k in form.value) fd.append(k, form.value[k] ?? '')
     if (pendingFile.value) fd.append('attachment', pendingFile.value)
-    await http.post('/hr/labor-contracts/', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
-    ElMessage.success('合同已登记')
+    if (editingId.value) {
+      await http.patch(`/hr/labor-contracts/${editingId.value}/`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      ElMessage.success('已保存修改')
+    } else {
+      await http.post('/hr/labor-contracts/', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      ElMessage.success('合同已登记')
+    }
     visible.value = false
     reload(); loadExpiring()
   } catch (e) { ElMessage.error('保存失败') } finally { saving.value = false }

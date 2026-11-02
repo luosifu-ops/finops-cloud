@@ -1,17 +1,17 @@
 // 财税企管云 · 小程序全局逻辑
 //
-// ⚠️【2026-09-25 修复】公网 WorkBuddy 托管网关对微信小程序 UA(MicroMessenger/MiniProgram) 一律返 403 HTML「请在浏览器中打开」，
-//    导致登录与所有数据请求全 403 → 全空白（蓝条实测「接口 403 · 取到 0 条」）。微信 wx.request 的 UA 不可自定义，客户端无解。
-//    现联调期改用本机 Django 后端 127.0.0.1:8000 绕过（IDE 模拟器已配 urlCheck:false + touristappid 可直连本机）。
+// 后端基地址（BASE_URL）切换规则（优先级从高到低）：
+//   1) 本地缓存 api_base 优先：wx.setStorageSync('api_base','http://127.0.0.1:8000/api') 可切回本机联调
+//   2) 默认生产域名 yuncaishuitong.com（公司自有、已 ICP 备案、HTTPS，微信审核用）
 //
-// 🔁 切换规则（优先级从高到低）：
-//   1) 本地缓存 api_base 优先（在控制台执行 wx.setStorageSync('api_base','https://yuncaishuitong.com/api') 即可切回公网）
-//   2) 默认本机 127.0.0.1:8000（联调）
-//   3) 生产环境请改成你自己的【已备案 HTTPS 域名】（如 https://yuncaishuitong.com/api），
-//      并在「微信公众平台 → 开发管理 → 开发设置 → 服务器域名」把 request 合法域名配成该 HTTPS 域名。
-const PROD_BASE_URL = 'https://finops-cloud-94765.app.workbuddy.host/api' // 公网/生产域名（审核发布用）
-const LOCAL_BASE_URL = 'http://127.0.0.1:8000/api'                          // 本机 Django（联调绕 403 用）
-const BASE_URL = wx.getStorageSync('api_base') || LOCAL_BASE_URL
+// 📌 2026-10-21 更新：网站备案 yuncaishuitong.com 已完成，原 WorkBuddy 沙箱网关
+//    (finops-cloud-94765.app.workbuddy.host) 已不可达，统一切到公司自有域名作为生产 BASE_URL。
+//    上传代码/提交审核前，务必在「微信公众平台 → 开发管理 → 开发设置 → 服务器域名」
+//    把 request 合法域名加入 https://yuncaishuitong.com（如用到上传/下载，再加 uploadFile/downloadFile）。
+const PROD_BASE_URL  = 'https://yuncaishuitong.com/api'                     // 公网/生产域名（已备案 HTTPS，审核发布用）
+const LOCAL_BASE_URL = 'http://127.0.0.1:8000/api'                          // 本机 Django（联调用）
+// 默认走生产域名；本地联调用 api_base 缓存覆盖即可
+const BASE_URL = wx.getStorageSync('api_base') || PROD_BASE_URL
 
 App({
   globalData: {

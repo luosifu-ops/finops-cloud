@@ -1,0 +1,1 @@
+import{B as t}from"./BaseListView-DLJQVhSc.js";import{O as e,L as s}from"./vue-DoYXRPnN.js";import"./element-Codo3wlA.js";import"./index-C0LnJK8s.js";import"./export-DpRGdH86.js";const u={__name:"BusinessView",setup(o){return(r,i)=>(s(),e(t,{title:"工商事项",baseUrl:"/accounting/business-items/","auto-form":""}))}};export{u as default};

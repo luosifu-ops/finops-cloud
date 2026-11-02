@@ -317,3 +317,31 @@ class HandoverRecord(BaseModel):
         verbose_name = "交接记录"
         verbose_name_plural = verbose_name
         ordering = ["-created_at"]
+
+
+class BookSet(BaseModel):
+    """账套（云账房托管的做账主体，2026-10-29 Boss 专项：账套 CRUD）
+
+    一个代账客户可有多个账套（如总分公司、一般纳税人+小规模并存），
+    云账房账套号用于与第三方系统对应；凭证数由做账流程回填。
+    """
+    STATUS = [("ACTIVE", "启用中"), ("PAUSED", "已暂停"), ("CLOSED", "已封存")]
+    TAXPAYER = [("GENERAL", "一般纳税人"), ("SMALL", "小规模纳税人"), ("INDIVIDUAL", "个体工商户")]
+    client = models.ForeignKey(AccountingClient, on_delete=models.CASCADE, related_name="book_sets",
+                               verbose_name="代账客户")
+    name = models.CharField("账套名称", max_length=200)
+    taxpayer_type = models.CharField("纳税人类型", max_length=20, choices=TAXPAYER, default="SMALL")
+    period = models.CharField("当前会计期间", max_length=7, db_index=True, help_text="如 2026-10")
+    opening_balance = models.DecimalField("期初余额(元)", max_digits=14, decimal_places=2, default=0)
+    voucher_count = models.IntegerField("凭证数", default=0)
+    yz_account_no = models.CharField("云账房账套号", max_length=60, blank=True, db_index=True)
+    status = models.CharField("状态", max_length=20, choices=STATUS, default="ACTIVE")
+    remark = models.CharField("备注", max_length=300, blank=True)
+
+    class Meta:
+        verbose_name = "账套"
+        verbose_name_plural = verbose_name
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.name

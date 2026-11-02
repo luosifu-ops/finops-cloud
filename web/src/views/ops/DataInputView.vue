@@ -17,6 +17,7 @@ const statForm = [
   { prop: 'click', label: '点击量', type: 'number' },
   { prop: 'lead_count', label: '线索数', type: 'number' },
   { prop: 'valid_lead', label: '有效线索', type: 'number' },
+  { prop: 'phone_added', label: '电话数', type: 'number' },
   { prop: 'wechat_added', label: '加微数', type: 'number' },
   { prop: 'visit_count', label: '访问量', type: 'number' },
   { prop: 'deal_count', label: '成交数', type: 'number' },

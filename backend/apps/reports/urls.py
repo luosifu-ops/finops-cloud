@@ -9,6 +9,7 @@ router.register("weekly-reports", viewsets.WeeklyReportViewSet, basename="weekly
 router.register("monthly-reports", viewsets.MonthlyReportViewSet, basename="monthly-report")
 router.register("review-reports", viewsets.ReviewReportViewSet, basename="review-report")
 router.register("report-comments", viewsets.ReportCommentViewSet, basename="report-comment")
+router.register("team-summaries", viewsets.TeamSummaryViewSet, basename="team-summary")
 
 urlpatterns = [
     path("", include(router.urls)),

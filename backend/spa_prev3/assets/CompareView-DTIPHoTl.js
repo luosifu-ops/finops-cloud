@@ -1,0 +1,1 @@
+import{B as a}from"./BaseListView-MX8bqSkt.js";import{O as e,L as r}from"./vue-DoYXRPnN.js";import"./element-Codo3wlA.js";import"./index-BJ3gwCnY.js";import"./export-DpRGdH86.js";const n={__name:"CompareView",setup(t){return(o,s)=>(r(),e(a,{title:"平台对比",baseUrl:"/ops/daily-stats/platform-compare/","read-only":"","raw-array":"","can-delete":!1}))}};export{n as default};

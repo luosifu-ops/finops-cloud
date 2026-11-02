@@ -3,7 +3,7 @@ from rest_framework import serializers
 from .models import (
     TaxType, AccountingClient, MonthlyTask, TaskStep, Voucher, Invoice,
     BankStatement, TaxDeclaration, SocialInsurance, AnnualReport,
-    BusinessItem, ClientDocument, HandoverRecord,
+    BusinessItem, ClientDocument, HandoverRecord, BookSet,
 )
 
 
@@ -193,3 +193,17 @@ class HandoverRecordSerializer(serializers.ModelSerializer):
                   "to_user", "to_user_name", "reason", "checklist", "confirmed",
                   "confirmed_at", "created_at", "updated_at"]
         read_only_fields = ["confirmed", "confirmed_at", "created_at", "updated_at"]
+
+
+class BookSetSerializer(serializers.ModelSerializer):
+    """账套（2026-10-29 云账房账套 CRUD）"""
+    client_name = serializers.CharField(source="client.customer.name", read_only=True)
+    taxpayer_type_name = serializers.CharField(source="get_taxpayer_type_display", read_only=True)
+    status_name = serializers.CharField(source="get_status_display", read_only=True)
+
+    class Meta:
+        model = BookSet
+        fields = ["id", "client", "client_name", "name", "taxpayer_type", "taxpayer_type_name",
+                  "period", "opening_balance", "voucher_count", "yz_account_no", "status",
+                  "status_name", "remark", "created_at", "updated_at"]
+        read_only_fields = ["created_at", "updated_at"]

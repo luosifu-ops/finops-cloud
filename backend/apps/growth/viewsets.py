@@ -16,6 +16,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.sales.models import Lead
+from apps.common.services import log_action
 from .models import (
     LeadChannel, LeadExt, LeadFlow, LeadPool, LeadStageLog,
     FieldTask, FieldProgress, ValueAddedProject, AdSpendRecord, GrowthRole,
@@ -29,7 +30,7 @@ from .serializers import (
     CloserChannelSerializer, LeadFollowUpSerializer, FieldTaskNodeSerializer,
 )
 from .permissions import (
-    can_view_all, is_ops, scope_leads, scope_field_tasks, scope_projects,
+    can_view_all, leads_scope_all, dept_scope_ids, scope_leads, scope_field_tasks, scope_projects,
     IsGrowthAdmin, IsOpsOrAdmin, IsCloserOrAdmin, IsFieldOrAdmin,
     IsFieldManagerOrAdmin, is_field_manager,
 )
@@ -99,8 +100,14 @@ class LeadChannelViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], permission_classes=[IsGrowthAdmin])
     def toggle(self, request, pk=None):
-        """启用/停用渠道（预留平台一键开启）"""
-        ch = self.get_object()
+        """启用/停用渠道（预留平台一键开启）
+
+        2026-10-31 修复：get_object 走默认 queryset（仅含 is_enabled=True），
+        渠道一旦停用就 404、永远无法再启用。改为直接按 pk 查全量记录。
+        """
+        ch = LeadChannel.objects.filter(is_deleted=False, pk=pk).first()
+        if ch is None:
+            return Response({"detail": "渠道不存在"}, status=404)
         ch.is_enabled = not ch.is_enabled
         ch.save(update_fields=["is_enabled"])
         return Response({"id": ch.id, "is_enabled": ch.is_enabled})
@@ -142,10 +149,12 @@ class LeadExtViewSet(viewsets.ModelViewSet):
         user = request.user
 
         channel = d["channel"]
-        # 录入权限：仅运营角色（或老板/管理层/显式授权者）可录入
-        if not (can_view_all(user) or is_ops(user)):
+        # 录入权限（2026-11-02 Boss 指示：功能与主账号对齐）：
+        # 所有登录账号均可录入线索；数据隔离不变 —— 归属运营自动=当前登录人，
+        # 查看范围仍由 scope_leads 按角色/部门隔离，管理层分配权限不受影响。
+        if not request.user.is_authenticated or not getattr(request.user, "is_active", True):
             return Response(
-                {"detail": "仅运营角色可录入线索（如需权限请联系管理员配置）"},
+                {"detail": "当前账号不可录入线索（未登录或已停用）"},
                 status=status.HTTP_403_FORBIDDEN)
         closer_id = d.get("closer")
         closer = None
@@ -199,6 +208,119 @@ class LeadExtViewSet(viewsets.ModelViewSet):
                 returned_reason="无可用成交师，自动进入公海", created_by=user)
 
         return Response(LeadExtSerializer(ext).data, status=status.HTTP_201_CREATED)
+
+    # ---------- 线索编辑 / 删除（2026-10-30 增量：运营部线索池录入出错可改可删） ----------
+    # 可改的扩展字段（归属运营 / 承接人不在此列：走分配 / 转派动作，避免绕过流转）
+    LEAD_EDIT_EXT_FIELDS = {
+        "channel": "来源平台", "source_account_no": "来源账号编号",
+        "contact_type": "联系方式类型", "contact_value": "联系方式",
+        "customer_need": "客户需求", "contact_person": "联系人",
+        "acquisition_cost": "获客成本", "deal_amount": "成交金额",
+        "stage_3570": "3570阶段",
+    }
+    # 可改的原线索字段（回写 sales.Lead，仅改内容不改结构）
+    LEAD_EDIT_LEAD_FIELDS = {
+        "name": "客户姓名", "phone": "电话", "wechat": "微信",
+        "company": "公司名称", "intention": "意向业务", "remark": "备注",
+    }
+
+    def _can_modify_lead(self, ext):
+        """编辑/删除权限：管理层（可看全量）或该线索的归属运营 / 承接人 / 创建人"""
+        u = self.request.user
+        if can_view_all(u):
+            return True
+        return u.id in {ext.ops_owner_id, ext.closer_id, ext.created_by_id}
+
+    @transaction.atomic
+    def update(self, request, *args, **kwargs):
+        """线索编辑：同时回写 LeadExt 与原 Lead，并写操作日志留痕"""
+        ext = self.get_object()
+        if not self._can_modify_lead(ext):
+            return Response({"detail": "无权修改该线索"}, status=status.HTTP_403_FORBIDDEN)
+        d = request.data
+        changed = []
+
+        lead = ext.lead
+        lead_dirty = False
+        if lead is not None:
+            for field, label in self.LEAD_EDIT_LEAD_FIELDS.items():
+                if field not in d:
+                    continue
+                new = (d.get(field) or "")
+                new = str(new).strip() if isinstance(new, str) else new
+                if field == "name" and not new:
+                    return Response({"detail": "客户姓名不能为空"},
+                                    status=status.HTTP_400_BAD_REQUEST)
+                if str(getattr(lead, field) or "") != str(new or ""):
+                    setattr(lead, field, new)
+                    lead_dirty = True
+                    changed.append(label)
+            if lead_dirty:
+                lead.save()
+
+        ext_dirty = False
+        for field, label in self.LEAD_EDIT_EXT_FIELDS.items():
+            if field not in d:
+                continue
+            value = d.get(field)
+            if field == "channel":
+                channel = LeadChannel.objects.filter(id=value, is_deleted=False).first()
+                if channel is None:
+                    return Response({"detail": "来源平台不存在"},
+                                    status=status.HTTP_400_BAD_REQUEST)
+                if ext.channel_id != channel.id:
+                    ext.channel = channel
+                    ext_dirty = True
+                    changed.append(label)
+                continue
+            if field in ("acquisition_cost", "deal_amount"):
+                try:
+                    value = float(value or 0)
+                except (TypeError, ValueError):
+                    return Response({"detail": f"{label}必须是数字"},
+                                    status=status.HTTP_400_BAD_REQUEST)
+            if field == "contact_value" and not (value or "").strip():
+                return Response({"detail": "联系方式不能为空"},
+                                status=status.HTTP_400_BAD_REQUEST)
+            if field in ("acquisition_cost", "deal_amount"):
+                # 数值字段按数值比较，避免 "0.00" 与 0.0 误判为改动
+                if float(getattr(ext, field) or 0) == float(value or 0):
+                    continue
+            elif str(getattr(ext, field) or "") == str(value or ""):
+                continue
+            setattr(ext, field, value)
+            ext_dirty = True
+            changed.append(label)
+        if not changed:
+            return Response({"detail": "未检测到改动", "id": ext.id,
+                             "data": LeadExtSerializer(ext).data})
+        if ext_dirty:
+            ext.save()
+        log_action(request, "UPDATE", module="运营线索池", obj=ext,
+                   detail="修改线索信息：" + "、".join(changed))
+        return Response({"detail": "已保存修改", "id": ext.id, "changed": changed,
+                         "data": LeadExtSerializer(ext).data})
+
+    @transaction.atomic
+    def destroy(self, request, *args, **kwargs):
+        """线索删除：软删除（保留历史引用），同时清出公海并写操作日志"""
+        ext = self.get_object()
+        if not self._can_modify_lead(ext):
+            return Response({"detail": "无权删除该线索"}, status=status.HTTP_403_FORBIDDEN)
+        name = (getattr(ext.lead, "name", "") or "") if ext.lead_id else ""
+        phone = (getattr(ext.lead, "phone", "") or "") if ext.lead_id else ""
+        pool = getattr(ext, "pool", None)
+        if pool is not None:
+            pool.is_deleted = True
+            pool.deleted_at = timezone.now()
+            pool.save(update_fields=["is_deleted", "deleted_at"])
+        log_action(request, "DELETE", module="运营线索池", obj=ext,
+                   detail=f"删除线索：{name or '-'} / {phone or '-'}")
+        ext.in_pool = False
+        ext.is_deleted = True
+        ext.deleted_at = timezone.now()
+        ext.save(update_fields=["in_pool", "is_deleted", "deleted_at"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     # ---------- 成交师承接 ----------
     @action(detail=True, methods=["post"], permission_classes=[IsCloserOrAdmin])
@@ -330,10 +452,82 @@ class LeadExtViewSet(viewsets.ModelViewSet):
                 to_user=(ext.ops_owner or ext.closer or request.user),
                 remark="管理层分配 → " + "；".join(targets) + (f"（{remark}）" if remark else ""),
                 created_by=request.user)
+        # 2026-10-30 增量：线索分配 → 自动发送站内消息通知被分配员工
+        from apps.common.services import notify_user
+        lead_desc = ""
+        if ext.lead_id:
+            _l = ext.lead
+            lead_desc = (getattr(_l, "name", "") or "") + (f"（{getattr(_l, 'phone', '') or ''}）" if getattr(_l, "phone", "") else "")
+        for _tuser, _trole in ((owner, "运营"), (closer, "成交师")):
+            if _tuser:
+                notify_user(_tuser, "您有新的线索分配",
+                            f"{request.user.display_name or request.user.username} 将线索「{lead_desc or ext.id}」分配给您担任{_trole}，请及时跟进。",
+                            category="SYSTEM", link="/growth/leads")
         return Response({
             "detail": "已分配", "id": ext.id,
             "ops_owner": ext.ops_owner_id, "closer": ext.closer_id,
         })
+
+    # ---------- 批量分配（Boss 2026-10-29：线索批量分配专项） ----------
+    @action(detail=False, methods=["post"], url_path="bulk-assign", permission_classes=[IsGrowthAdmin])
+    def bulk_assign(self, request):
+        """批量分配线索：{"ids": [...], "owner_id": x, "closer_id": y, "remark": "..."}
+        owner_id / closer_id 至少一项；逐条复用单条 assign 逻辑并写 LeadFlow 留痕。"""
+        ids = request.data.get("ids") or []
+        owner_id = request.data.get("owner_id")
+        closer_id = request.data.get("closer_id")
+        remark = request.data.get("remark") or ""
+        if not ids:
+            return Response({"detail": "请先勾选要分配的线索"}, status=status.HTTP_400_BAD_REQUEST)
+        if owner_id is None and closer_id is None:
+            return Response({"detail": "请至少指定运营或成交师"}, status=status.HTTP_400_BAD_REQUEST)
+        from apps.accounts.models import User
+        owner = User.objects.filter(id=owner_id).first() if owner_id is not None else None
+        closer = User.objects.filter(id=closer_id).first() if closer_id is not None else None
+        if owner_id is not None and owner is None:
+            return Response({"detail": "运营人不存在"}, status=status.HTTP_400_BAD_REQUEST)
+        if closer_id is not None and closer is None:
+            return Response({"detail": "成交师不存在"}, status=status.HTTP_400_BAD_REQUEST)
+        ok, fail = 0, 0
+        for ext in self.get_queryset().filter(id__in=ids):
+            try:
+                with transaction.atomic():
+                    old_owner, old_closer = ext.ops_owner, ext.closer
+                    targets = []
+                    if owner is not None:
+                        ext.ops_owner = owner
+                        targets.append(f"运营={getattr(owner, 'display_name', None) or owner.username}")
+                    if closer is not None:
+                        ext.closer = closer
+                        targets.append(f"成交师={getattr(closer, 'display_name', None) or closer.username}")
+                    ext.in_pool = False
+                    ext.save(update_fields=["ops_owner", "closer", "in_pool"])
+                    LeadPool.objects.filter(lead_ext=ext, status="WAITING").update(
+                        status="CLAIMED", claimed_by=request.user, claimed_at=timezone.now())
+                    LeadFlow.objects.create(
+                        lead_ext=ext, action="ASSIGN",
+                        from_user=(old_owner or old_closer or request.user),
+                        to_user=(ext.ops_owner or ext.closer or request.user),
+                        remark="批量分配 → " + "；".join(targets) + (f"（{remark}）" if remark else ""),
+                        created_by=request.user)
+                ok += 1
+                # 2026-10-30 增量：批量分配也逐条通知被分配员工
+                from apps.common.services import notify_user
+                lead_desc = ""
+                if ext.lead_id:
+                    _l = ext.lead
+                    lead_desc = (getattr(_l, "name", "") or "") + (f"（{getattr(_l, 'phone', '') or ''}）" if getattr(_l, "phone", "") else "")
+                for _tuser in {owner, closer}:
+                    if _tuser:
+                        notify_user(_tuser, "您有新的线索分配",
+                                    f"{request.user.display_name or request.user.username} 批量分配了线索「{lead_desc or ext.id}」给您，请及时跟进。",
+                                    category="SYSTEM", link="/growth/leads")
+            except Exception:
+                fail += 1
+        from apps.common.services import log_action
+        log_action(request, "ASSIGN", module="线索工作台",
+                   detail=f"批量分配 {ok} 条（失败 {fail}）: " + "；".join(targets) if ok else f"批量分配失败 {fail} 条")
+        return Response({"detail": f"批量分配完成：成功 {ok} 条，失败 {fail} 条", "ok": ok, "fail": fail})
 
     # ---------- 3570 阶段标记（人工） ----------
     @action(detail=True, methods=["post"])
@@ -448,6 +642,25 @@ class LeadPoolViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(status=self.request.query_params["status"])
         return qs.order_by("-created_at")
 
+    @action(detail=False, methods=["get"])
+    def stats(self, request):
+        """公海指标（口径与列表一致，但不受分页/状态筛选影响）
+
+        前端顶部指标卡若直接从「当前分页列表」统计，会出现「待领取页显示已领取 0」
+        的失真；此处统一由后端聚合，保证数字与真实数据一致。
+        """
+        qs = LeadPool.objects.filter(is_deleted=False)
+        if not can_view_all(request.user):
+            qs = qs.filter(Q(status="WAITING") | Q(claimed_by=request.user))
+        data = qs.aggregate(
+            waiting=Count("id", filter=Q(status="WAITING")),
+            claimed=Count("id", filter=Q(status="CLAIMED")),
+            total=Count("id"),
+            return_count=Sum("claim_count"),
+        )
+        data["return_count"] = data.get("return_count") or 0
+        return Response(data)
+
 
 # ---------------- 流转记录 ----------------
 class LeadFlowViewSet(viewsets.ReadOnlyModelViewSet):
@@ -457,8 +670,13 @@ class LeadFlowViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        if not can_view_all(self.request.user):
-            qs = qs.filter(Q(from_user=self.request.user) | Q(to_user=self.request.user))
+        # 2026-10-30：线索流转记录同样只对老板/总经理全量，主管看本部门
+        if not leads_scope_all(self.request.user):
+            ids = dept_scope_ids(self.request.user)
+            if ids is not None:
+                qs = qs.filter(Q(from_user_id__in=ids) | Q(to_user_id__in=ids))
+            else:
+                qs = qs.filter(Q(from_user=self.request.user) | Q(to_user=self.request.user))
         if self.request.query_params.get("lead_ext"):
             qs = qs.filter(lead_ext_id=self.request.query_params["lead_ext"])
         return qs.order_by("-created_at").distinct()
@@ -485,14 +703,48 @@ class FieldTaskViewSet(viewsets.ModelViewSet):
         qs = super().get_queryset()
         qs = scope_field_tasks(qs, self.request.user)   # 外勤看自己的，销售看自己下单的
         # 增量功能（阶段三）：主管派单给外勤后，派单人(assigned_by)保留可见+可编辑权限
+        # 2026-10-28 修复 500：distinct 查询不可与非 distinct 查询合并，两侧先统一 distinct
         if self.request.user.is_authenticated:
-            qs = qs | super().get_queryset().filter(assigned_by=self.request.user)
+            qs = qs.distinct() | super().get_queryset().filter(assigned_by=self.request.user).distinct()
         p = self.request.query_params
         if p.get("status"):
             qs = qs.filter(status=p["status"])
         if p.get("order_no"):
             qs = qs.filter(order_no=p["order_no"])
         return qs.distinct().order_by("-created_at")
+
+    def _can_modify_task(self, task):
+        """编辑/删除权限：管理层（老板/经理/HR/超管）或该任务的下单人/创建人"""
+        from apps.common.permissions import is_boss
+        u = self.request.user
+        if u.is_superuser or is_boss(u):
+            return True
+        if getattr(u, "role", None) in ("MANAGER", "HR"):
+            return True
+        return u.id in {task.creator_id, getattr(task, "created_by_id", None)}
+
+    @transaction.atomic
+    def destroy(self, request, *args, **kwargs):
+        """2026-10-30 增量：外勤任务删除（软删除，保留历史引用与进度留痕）"""
+        task = self.get_object()
+        if not self._can_modify_task(task):
+            return Response({"detail": "无权删除该外勤任务"},
+                            status=status.HTTP_403_FORBIDDEN)
+        label = task.customer_name or task.order_no or task.task_no or ("#" + str(task.id))
+        # 同步软删节点与进度，避免孤儿数据出现在任何统计口径
+        now = timezone.now()
+        task.nodes.filter(is_deleted=False).update(is_deleted=True, deleted_at=now)
+        task.progresses.filter(is_deleted=False).update(is_deleted=True, deleted_at=now)
+        if hasattr(task, "soft_delete"):
+            task.soft_delete()
+        else:
+            task.is_deleted = True
+            task.deleted_at = now
+            task.save(update_fields=["is_deleted", "deleted_at"])
+        log_action(request, "DELETE", module="外勤任务池", obj=task,
+                   detail=f"删除外勤任务：{label}")
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
     def create(self, request, *args, **kwargs):
         # 销售下单：creator = 当前用户；下单后按业务类型自动生成节点模板
@@ -501,6 +753,21 @@ class FieldTaskViewSet(viewsets.ModelViewSet):
         serializer.save(creator=request.user, created_by=request.user)
         task = serializer.instance
         _create_field_task_nodes(task, request.user)
+        # 2026-10-30 增量：各部门「合同订单 → 外勤」下发。
+        # 创建时若已指定外勤人员，则记录派单人并留痕，该单立即出现在该外勤的任务池；
+        # 未指定则照旧进入公共待接收池，由外勤主管派单或外勤自行接单。
+        if task.assignee_id:
+            task.assigned_by = request.user
+            task.save(update_fields=["assigned_by"])
+            field_name = (task.assignee.display_name or task.assignee.username) if task.assignee else "未命名"
+            FieldProgress.objects.create(
+                task=task, node="订单下发",
+                content="%s 将订单下发至 %s（来源单号：%s）" % (
+                    request.user.display_name or request.user.username,
+                    field_name,
+                    task.from_order_no or task.order_no or "-",
+                ),
+                reported_by=request.user, created_by=request.user)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
@@ -562,13 +829,21 @@ class FieldTaskViewSet(viewsets.ModelViewSet):
         """所有可选的预设节点（供前端点选下拉）"""
         return Response([{"value": k, "label": v} for k, v in FieldTaskNode.NODES])
 
-    # ---------- 外勤主管派单 ----------
-    @action(detail=True, methods=["post"], permission_classes=[IsFieldManagerOrAdmin])
+    # ---------- 外勤派单 / 再分配 ----------
+    @action(detail=True, methods=["post"], permission_classes=[IsFieldOrAdmin])
     def assign(self, request, pk=None):
-        """外勤主管将任务分配给指定外勤人员（支持选择系统用户，或手动录入姓名）"""
+        """外勤主管派单，或外勤本人把手上这单再分配给其他外勤人员
+
+        权限：外勤主管/管理员 可派任意单；外勤本人 仅可再分配「已派给自己」的单。
+        """
         from apps.accounts.models import User
         from django.db.models import Q
         task = self.get_object()
+        # 再分配校验：非主管时，必须是本单当前负责人
+        if not is_field_manager(request.user) and task.assignee_id != request.user.id:
+            return Response(
+                {"detail": "仅外勤主管或本单负责人可派单/再分配"},
+                status=status.HTTP_403_FORBIDDEN)
         uid = request.data.get("assignee")
         name = (request.data.get("assignee_name") or "").strip()
         u = None
@@ -583,6 +858,7 @@ class FieldTaskViewSet(viewsets.ModelViewSet):
             )
         if u is None and not name:
             return Response({"detail": "请选择或录入外勤人员"}, status=status.HTTP_400_BAD_REQUEST)
+        prev_name = task.assignee_name or (task.assignee.display_name if task.assignee else "") or "未派单"
         if u:
             task.assignee = u
             task.assignee_name = u.display_name or u.username
@@ -595,10 +871,18 @@ class FieldTaskViewSet(viewsets.ModelViewSet):
             task.status = "ACCEPTED"
             task.accepted_at = timezone.now()
         task.save(update_fields=["assignee", "assignee_name", "assigned_by", "status", "accepted_at"])
+        # 留痕：首次派单记「主管派单」，换人记「再分配」
+        if prev_name and prev_name != "未派单" and prev_name != task.assignee_name:
+            node_label = "再分配"
+            content = f"{prev_name} → {task.assignee_name}（操作人：{request.user.display_name or request.user.username}）"
+        else:
+            node_label = "主管派单"
+            content = f"已派单给 {task.assignee_name}"
         FieldProgress.objects.create(
-            task=task, node="主管派单", content=f"已派单给 {task.assignee_name}",
+            task=task, node=node_label, content=content,
             reported_by=request.user, created_by=request.user)
-        return Response({"detail": "已派单", "assignee_name": task.assignee_name})
+        return Response({"detail": "已再分配" if node_label == "再分配" else "已派单",
+                         "assignee_name": task.assignee_name})
 
     # ---------- 成交订单自动流转到外勤任务池 ----------
     @action(detail=False, methods=["post"], permission_classes=[IsGrowthAdmin])
@@ -632,6 +916,120 @@ class FieldTaskViewSet(viewsets.ModelViewSet):
         _create_field_task_nodes(task, request.user)
         return Response(FieldTaskSerializer(task).data, status=status.HTTP_201_CREATED)
 
+    # ---------- 跨部门订单转接（2026-10-30 Boss 增量） ----------
+    @action(detail=False, methods=["post"], url_path="transfer-in",
+            permission_classes=[permissions.IsAuthenticated])
+    def transfer_in(self, request):
+        """跨部门订单转接：其他部门员工把订单流转转接至外勤部外勤任务池。
+
+        请求体：{ customer_name, order_no?, business_type?, task_type?,
+                  customer_type?, title?, address?, due_at?, remark? }
+        客户名称 / 关联单号至少填一项；创建后进入「待接收」池，由外勤主管派单。
+        """
+        d = request.data or {}
+        customer_name = (d.get("customer_name") or "").strip()
+        order_no = (d.get("order_no") or d.get("from_order_no") or "").strip()
+        if not customer_name and not order_no:
+            return Response({"detail": "请至少填写客户名称或关联单号"},
+                            status=status.HTTP_400_BAD_REQUEST)
+        task_type = (d.get("task_type") or "").strip() or "跨部门转接"
+        business_type = d.get("business_type") or ""
+        if business_type not in dict(FieldTask.BUSINESS_TYPE):
+            business_type = _infer_business_type(task_type)
+        # 要求完成时间：支持 datetime 或纯日期，解析失败则留空不阻塞
+        due_at = None
+        due_raw = (d.get("due_at") or "").strip()
+        if due_raw:
+            from django.utils.dateparse import parse_datetime, parse_date
+            dt = parse_datetime(due_raw)
+            if dt is None:
+                dd = parse_date(due_raw)
+                if dd is not None:
+                    from datetime import datetime as _dt, time as _time
+                    dt = timezone.make_aware(_dt.combine(dd, _time.min))
+            due_at = dt
+        task = FieldTask.objects.create(
+            title=(d.get("title") or "").strip() or f"跨部门转接-{customer_name or order_no}",
+            customer_name=customer_name,
+            customer_type=d.get("customer_type") or "ENTERPRISE",
+            order_no=order_no,
+            from_order_no=order_no,
+            business_type=business_type,
+            task_type=task_type,
+            address=(d.get("address") or "").strip(),
+            due_at=due_at,
+            remark=(d.get("remark") or "").strip(),
+            status="PENDING",
+            creator=request.user,
+            created_by=request.user,
+        )
+        _create_field_task_nodes(task, request.user)
+        operator = request.user.display_name or request.user.username
+        FieldProgress.objects.create(
+            task=task, node="跨部门转接",
+            content=f"{operator} 将订单转接至外勤任务池（关联单号：{order_no or '-'}）",
+            reported_by=request.user, created_by=request.user)
+        # 通知外勤人员：有新转接单进入任务池
+        from apps.common.services import notify_user
+        from apps.accounts.models import User
+        for fu in User.objects.filter(
+                growth_role__role="FIELD", growth_role__is_deleted=False,
+                is_active=True).distinct():
+            notify_user(fu, "外勤任务池有新转接单",
+                        f"{operator} 转接了订单「{task.title}」，请外勤主管及时派单。",
+                        category="SYSTEM", link="/growth/field-tasks")
+        log_action(request, "CREATE", module="外勤任务池", obj=task, detail="跨部门订单转接")
+        return Response(FieldTaskSerializer(task).data, status=status.HTTP_201_CREATED)
+
+    # ---------- 外勤回退（2026-10-31 Boss 增量） ----------
+    @action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated])
+    def return_back(self, request, pk=None):
+        """外勤回退：外勤把派给自己的任务退回外勤任务池。
+
+        可回退状态：ACCEPTED / IN_PROGRESS（待接收无需回退，已办结/关闭不可回退）。
+        退回后：状态回 PENDING、清空外勤与接收时间、进度留痕、通知派单人与下单人。
+        请求体：{"reason": "回退原因"}
+        """
+        task = self.get_object()
+        u = request.user
+        is_field = task.assignee_id == u.id
+        is_admin = u.is_superuser or getattr(u, "role", None) in ("BOSS", "MANAGER", "HR")
+        if not (is_field or is_admin):
+            return Response({"detail": "仅该任务的外勤人员或管理层可回退"},
+                            status=status.HTTP_403_FORBIDDEN)
+        if task.status not in ("ACCEPTED", "IN_PROGRESS"):
+            return Response({"detail": "当前状态不可回退（待接收任务可直接联系主管重新派单）"},
+                            status=status.HTTP_400_BAD_REQUEST)
+        reason = (request.data.get("reason") or "").strip() or "未填写原因"
+        task.status = "PENDING"
+        task.assignee = None
+        task.accepted_at = None
+        stamp = timezone.localtime().strftime("%m-%d %H:%M")
+        back_note = f"【回退】{reason}（{u.display_name or u.username} · {stamp}）"
+        task.remark = f"{task.remark}\n{back_note}".strip()
+        task.save(update_fields=["status", "assignee", "accepted_at", "remark"])
+        FieldProgress.objects.create(
+            task=task, node="已回退", content=reason,
+            reported_by=u, created_by=u)
+        # 通知派单人与下单人（回退人本人除外）
+        from apps.common.services import notify_user
+        from apps.accounts.models import User
+        operator = u.display_name or u.username
+        targets = {task.assigned_by_id, task.creator_id, task.created_by_id}
+        targets.discard(None)
+        targets.discard(u.id)
+        for tid in targets:
+            tu = User.objects.filter(id=tid).first()
+            if tu is None:
+                continue
+            notify_user(tu,
+                        "外勤任务被回退",
+                        f"{operator} 回退了任务「{task.title}」：{reason}。请到外勤任务池重新处理。",
+                        category="SYSTEM", link="/growth/field-tasks")
+        log_action(request, "UPDATE", module="外勤任务", obj=task,
+                   detail=f"外勤回退：{reason}")
+        return Response({"id": task.id, "status": task.status, "detail": "已回退至外勤任务池"})
+
 
 def _infer_business_type(task_type):
     """根据任务类型文本推断业务类型编码"""
@@ -656,6 +1054,13 @@ class FieldProgressViewSet(viewsets.ModelViewSet):
     queryset = FieldProgress.objects.filter(is_deleted=False)
     serializer_class = FieldProgressSerializer
 
+    def get_queryset(self):
+        # 2026-10-29 权限专项：原来无任何数据范围，任何账号都能拉全公司外勤进度。
+        # 现按所属外勤任务的可见范围收窄。
+        qs = super().get_queryset()
+        tasks = scope_field_tasks(FieldTask.objects.filter(is_deleted=False), self.request.user)
+        return qs.filter(task__in=tasks).distinct()
+
     def perform_create(self, serializer):
         serializer.save(reported_by=self.request.user, created_by=self.request.user)
 
@@ -669,9 +1074,12 @@ class LeadFollowUpViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        # 2026-10-29 权限专项：按所属线索的可见范围收窄（原来全公司可见）
+        leads = scope_leads(LeadExt.objects.filter(is_deleted=False), self.request.user)
+        qs = qs.filter(lead_ext__in=leads)
         if self.request.query_params.get("lead_ext"):
             qs = qs.filter(lead_ext_id=self.request.query_params["lead_ext"])
-        return qs.order_by("round_no", "created_at")
+        return qs.order_by("round_no", "created_at").distinct()
 
     def perform_create(self, serializer):
         data = serializer.validated_data
@@ -701,9 +1109,12 @@ class FieldTaskNodeViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        # 2026-10-29 权限专项：按所属外勤任务的可见范围收窄（原来全公司可见）
+        tasks = scope_field_tasks(FieldTask.objects.filter(is_deleted=False), self.request.user)
+        qs = qs.filter(task__in=tasks)
         if self.request.query_params.get("task"):
             qs = qs.filter(task_id=self.request.query_params["task"])
-        return qs.order_by("order", "id")
+        return qs.order_by("order", "id").distinct()
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)

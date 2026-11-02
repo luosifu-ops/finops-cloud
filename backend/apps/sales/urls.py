@@ -12,6 +12,7 @@ router.register("targets", viewsets.SalesTargetViewSet, basename="sales-target")
 router.register("commission-rules", viewsets.CommissionRuleViewSet, basename="commission-rule")
 router.register("salary", viewsets.SalaryViewSet, basename="salary")
 router.register("streamers", viewsets.StreamerViewSet, basename="streamer")
+router.register("customer-tags", viewsets.CustomerTagViewSet, basename="customer-tag")
 
 urlpatterns = [
     path("", include(router.urls)),

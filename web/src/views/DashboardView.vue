@@ -1,13 +1,14 @@
 <template>
   <div class="page" v-loading="loading" element-loading-text="经营数据加载中…">
-    <!-- 新手引导条 -->
-    <div class="guide" v-if="showGuide">
-      <div class="guide-icon">🧭</div>
-      <div class="guide-body">
-        <div class="guide-title">经营总览 · 使用引导</div>
-        <div class="guide-text">① 顶部 6 张指标卡看全局；② <b>目标达成仪表盘</b>看月度进度；③ <b>智能预警中心</b>聚合待审批/逾期/到期，点击可跳转处理；④ 顶栏「消息」随时查看待办。</div>
+    <div class="page-header">
+      <h2 class="page-title">经营总览</h2>
+      <div style="display:flex;align-items:center;gap:8px">
+        <el-date-picker v-model="month" type="month" value-format="YYYY-MM"
+                        placeholder="选择月份" style="width: 150px" @change="loadAll" />
+        <el-button :icon="Edit" size="small" @click="openTarget" data-pdf-hide>设置目标</el-button>
+        <el-button :icon="Download" size="small" @click="exportPdf" :loading="exporting"
+                   data-pdf-hide>导出 PDF</el-button>
       </div>
-      <el-button text size="small" :icon="Close" @click="dismissGuide">不再提示</el-button>
     </div>
 
     <!-- 欢迎条 -->
@@ -27,23 +28,22 @@
       </div>
     </div>
 
-    <div class="page-header">
-      <h2 class="page-title">经营总览</h2>
-      <div style="display:flex;align-items:center;gap:8px">
-        <el-date-picker v-model="month" type="month" value-format="YYYY-MM"
-                        placeholder="选择月份" style="width: 150px" @change="loadAll" />
-        <el-button :icon="Edit" size="small" @click="openTarget" data-pdf-hide>设置目标</el-button>
-        <el-button :icon="Download" size="small" @click="exportPdf" :loading="exporting"
-                   data-pdf-hide>导出 PDF</el-button>
+    <!-- 新手引导条 -->
+    <div class="guide" v-if="showGuide">
+      <div class="guide-icon">🧭</div>
+      <div class="guide-body">
+        <div class="guide-title">经营总览 · 使用引导</div>
+        <div class="guide-text">① 顶部 6 张指标卡看全局；② <b>目标达成仪表盘</b>看月度进度；③ <b>智能预警中心</b>聚合待审批/逾期/到期，点击可跳转处理；④ 顶栏「消息」随时查看待办。</div>
       </div>
+      <el-button text size="small" :icon="Close" @click="dismissGuide">不再提示</el-button>
     </div>
 
     <!-- 核心指标 -->
     <el-row :gutter="14">
-      <el-col :span="4" v-for="c in cards" :key="c.label">
-        <el-card shadow="never" class="stat-card">
+      <el-col :span="4" v-for="(c, i) in cards" :key="c.label">
+        <el-card shadow="never" class="stat-card" :class="{ 'hero-card': i === 0 }">
           <div class="label">{{ c.label }}</div>
-          <div class="value" :style="{ color: c.color }">{{ c.value }}</div>
+          <div class="value" :style="i === 0 ? null : { color: c.color }">{{ c.value }}</div>
           <div class="sub">{{ c.sub }}</div>
         </el-card>
       </el-col>
@@ -70,8 +70,10 @@
           <el-row :gutter="12">
             <el-col :span="6" v-for="w in warnings" :key="w.key">
               <div class="warn-tile" :class="'warn-'+w.level" @click="go(w.path)">
-                <div class="warn-icon">{{ w.icon }}</div>
-                <div class="warn-num">{{ w.count }}</div>
+                <div class="warn-top">
+                  <span class="warn-icon"><el-icon><component :is="w.iconComp" /></el-icon></span>
+                  <span class="warn-num">{{ w.count }}</span>
+                </div>
                 <div class="warn-label">{{ w.label }}</div>
               </div>
             </el-col>
@@ -280,10 +282,10 @@ const roleName = computed(() => store.roleName)
 
 /* 预警数据 */
 const warnings = reactive([
-  { key: 'approval', level: 'danger', icon: '✅', label: '待我审批', count: 0, path: '/hr/approval' },
-  { key: 'overdue', level: 'warning', icon: '⏰', label: '逾期做账', count: 0, path: '/accounting/tasks' },
-  { key: 'expireSales', level: 'warning', icon: '📝', label: '合同将到期', count: 0, path: '/sales/customers' },
-  { key: 'expireAcc', level: 'warning', icon: '📒', label: '代账将到期', count: 0, path: '/accounting/clients' }
+  { key: 'approval', level: 'danger', icon: '✅', iconComp: 'CircleCheck', label: '待我审批', count: 0, path: '/hr/approval' },
+  { key: 'overdue', level: 'warning', icon: '⏰', iconComp: 'AlarmClock', label: '逾期做账', count: 0, path: '/accounting/tasks' },
+  { key: 'expireSales', level: 'warning', icon: '📝', iconComp: 'Document', label: '合同将到期', count: 0, path: '/sales/customers' },
+  { key: 'expireAcc', level: 'warning', icon: '📒', iconComp: 'Notebook', label: '代账将到期', count: 0, path: '/accounting/clients' }
 ])
 const expiringList = ref([])
 const expiringTotal = computed(() => warnings[2].count + warnings[3].count)
@@ -308,12 +310,12 @@ const cards = computed(() => {
   const a = data.accounting || {}
   const o = data.ops || {}
   return [
-    { label: '本月业绩', value: '¥' + wan(p.amount || 0), sub: `目标 ¥${wan(p.target || 0)}`, color: '#d93026' },
-    { label: '目标完成率', value: (p.completion || 0) + '%', sub: `订单 ${p.orders || 0} 单`, color: p.completion >= 100 ? '#0f9960' : '#1f2329' },
-    { label: '已回款', value: '¥' + wan(p.received || 0), sub: `待收 ¥${wan(p.receivable || 0)}`, color: '#0f9960' },
-    { label: '线索总数', value: fmt(data.leads?.total || 0), sub: `成交 ${data.leads?.dealt || 0} / 跟进 ${data.leads?.following || 0}`, color: '#2f6fed' },
-    { label: '做账完成率', value: (a.completion || 0) + '%', sub: `${a.done || 0}/${a.total || 0} 户 · 逾期 ${a.overdue || 0}`, color: a.completion >= 90 ? '#0f9960' : '#d9822b' },
-    { label: '投放 ROI', value: (o.roi || 0), sub: `消耗 ¥${wan(o.cost || 0)} · 成交 ${o.deals || 0}`, color: (o.roi || 0) >= 3 ? '#0f9960' : '#d9822b' }
+    { label: '本月业绩', value: '¥' + wan(p.amount || 0), sub: `目标 ¥${wan(p.target || 0)}`, color: '#c3372c' },
+    { label: '目标完成率', value: (p.completion || 0) + '%', sub: `订单 ${p.orders || 0} 单`, color: p.completion >= 100 ? '#12865a' : '#1f2329' },
+    { label: '已回款', value: '¥' + wan(p.received || 0), sub: `待收 ¥${wan(p.receivable || 0)}`, color: '#12865a' },
+    { label: '线索总数', value: fmt(data.leads?.total || 0), sub: `成交 ${data.leads?.dealt || 0} / 跟进 ${data.leads?.following || 0}`, color: '#4a6fa5' },
+    { label: '做账完成率', value: (a.completion || 0) + '%', sub: `${a.done || 0}/${a.total || 0} 户 · 逾期 ${a.overdue || 0}`, color: a.completion >= 90 ? '#12865a' : '#c0392f' },
+    { label: '投放 ROI', value: (o.roi || 0), sub: `消耗 ¥${wan(o.cost || 0)} · 成交 ${o.deals || 0}`, color: (o.roi || 0) >= 3 ? '#12865a' : '#c0392f' }
   ]
 })
 
@@ -382,9 +384,9 @@ const renderCharts = (trend, depts, att, ops) => {
       { type: 'value', name: '订单', splitLine: { show: false } }
     ],
     series: [
-      { name: '业绩', type: 'bar', data: (trend || []).map(t => t.amount), itemStyle: { color: '#2f6fed', borderRadius: [4, 4, 0, 0] }, barWidth: '32%' },
-      { name: '订单数', type: 'line', yAxisIndex: 1, data: (trend || []).map(t => t.orders), itemStyle: { color: '#d93026' }, smooth: true },
-      { name: '投放消耗', type: 'line', data: (trend || []).map(t => t.ad_cost), itemStyle: { color: '#d9822b' }, smooth: true }
+      { name: '业绩', type: 'bar', data: (trend || []).map(t => t.amount), itemStyle: { color: '#4a6fa5', borderRadius: [4, 4, 0, 0] }, barWidth: '32%' },
+      { name: '订单数', type: 'line', yAxisIndex: 1, data: (trend || []).map(t => t.orders), itemStyle: { color: '#c3372c' }, smooth: true },
+      { name: '投放消耗', type: 'line', data: (trend || []).map(t => t.ad_cost), itemStyle: { color: '#c0392f' }, smooth: true }
     ]
   })
 
@@ -394,7 +396,7 @@ const renderCharts = (trend, depts, att, ops) => {
     xAxis: { type: 'value', axisLabel: { formatter: v => v >= 10000 ? v / 10000 + '万' : v } },
     yAxis: { type: 'category', data: (depts || []).map(d => d.department_name) },
     series: [
-      { name: '实际业绩', type: 'bar', data: (depts || []).map(d => d.amount), itemStyle: { color: '#2f6fed', borderRadius: [0, 4, 4, 0] } },
+      { name: '实际业绩', type: 'bar', data: (depts || []).map(d => d.amount), itemStyle: { color: '#4a6fa5', borderRadius: [0, 4, 4, 0] } },
       { name: '目标', type: 'bar', data: (depts || []).map(d => d.target), itemStyle: { color: '#e6e8eb', borderRadius: [0, 4, 4, 0] }, barGap: '-60%' }
     ],
     legend: { data: ['实际业绩', '目标'], bottom: 0 }
@@ -405,9 +407,9 @@ const renderCharts = (trend, depts, att, ops) => {
     series: [{
       type: 'pie', radius: ['45%', '70%'],
       data: [
-        { value: att?.checked || 0, name: '已打卡', itemStyle: { color: '#0f9960' } },
-        { value: att?.late || 0, name: '迟到', itemStyle: { color: '#d9822b' } },
-        { value: att?.leave || 0, name: '请假', itemStyle: { color: '#2f6fed' } },
+        { value: att?.checked || 0, name: '已打卡', itemStyle: { color: '#12865a' } },
+        { value: att?.late || 0, name: '迟到', itemStyle: { color: '#c0392f' } },
+        { value: att?.leave || 0, name: '请假', itemStyle: { color: '#4a6fa5' } },
         { value: Math.max((att?.total_staff || 0) - (att?.checked || 0) - (att?.leave || 0), 0), name: '未打卡', itemStyle: { color: '#e6e8eb' } }
       ],
       label: { fontSize: 11 },
@@ -422,7 +424,7 @@ const renderCharts = (trend, depts, att, ops) => {
     yAxis: { type: 'value', axisLabel: { formatter: v => v >= 10000 ? v / 10000 + '万' : v } },
     series: [
       { name: '消耗', type: 'bar', data: (ops?.by_platform || []).map(p => p.cost), itemStyle: { color: '#8ab4f8', borderRadius: [4, 4, 0, 0] } },
-      { name: '成交额', type: 'bar', data: (ops?.by_platform || []).map(p => p.amount), itemStyle: { color: '#2f6fed', borderRadius: [4, 4, 0, 0] } }
+      { name: '成交额', type: 'bar', data: (ops?.by_platform || []).map(p => p.amount), itemStyle: { color: '#4a6fa5', borderRadius: [4, 4, 0, 0] } }
     ],
     legend: { data: ['消耗', '成交额'], bottom: 0 }
   })
@@ -432,13 +434,13 @@ const renderCharts = (trend, depts, att, ops) => {
   charts[4]?.setOption({
     series: [{
       type: 'gauge', startAngle: 210, endAngle: -30, radius: '92%', center: ['50%', '56%'],
-      progress: { show: true, width: 14, itemStyle: { color: comp >= 100 ? '#0f9960' : (comp >= 60 ? '#2f6fed' : '#d93026') } },
+      progress: { show: true, width: 14, itemStyle: { color: comp >= 100 ? '#12865a' : (comp >= 60 ? '#4a6fa5' : '#c3372c') } },
       axisLine: { lineStyle: { width: 14, color: [[1, '#eef0f4']] } },
       pointer: { show: false },
       axisTick: { show: false }, splitLine: { show: false }, axisLabel: { show: false },
       anchor: { show: false },
       detail: { valueAnimation: true, fontSize: 30, fontWeight: 700, offsetCenter: [0, '-4%'],
-        formatter: '{value}%', color: comp >= 100 ? '#0f9960' : '#1f2329' },
+        formatter: '{value}%', color: comp >= 100 ? '#12865a' : '#1f2329' },
       title: { show: true, offsetCenter: [0, '26%'], fontSize: 12, color: '#8a919f' },
       data: [{ value: comp, name: '目标完成率' }]
     }]
@@ -504,70 +506,230 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.page-header { display: flex; justify-content: space-between; align-items: center; }
-.card-title { font-size: 15px; font-weight: 600; margin-bottom: 14px; overflow: hidden; }
-.card-tip { font-size: 12px; font-weight: 400; color: var(--text-sub); margin-left: 8px; }
-.stat-card { border-radius: 10px; border: 1px solid var(--border); }
-.stat-card .value { font-size: 24px; }
-.dept-card { cursor: pointer; border-radius: 10px; }
-.dept-card:hover { border-color: var(--primary); }
-.dept-name { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-.dept-stat { font-size: 22px; font-weight: 700; color: var(--primary); margin-top: 10px; }
-.dept-sub { font-size: 12px; color: var(--text-sub); margin-top: 4px; }
+/* ============================================================================
+   经营总览 —— 全站视觉标杆页
+   ========================================================================== */
+.page-header {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 18px; margin-bottom: 20px; padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-soft); position: relative;
+}
+.page-header::after {
+  content: ''; position: absolute; left: 0; bottom: -1px; width: 132px; height: 1px;
+  background: linear-gradient(90deg, var(--primary), rgba(74, 111, 165, 0));
+}
+.page-header .page-title { font-size: 23px; font-weight: 700; letter-spacing: -0.4px; margin: 0; }
+
+.card-title {
+  font-size: 15px; font-weight: 650; margin-bottom: 16px;
+  overflow: hidden; letter-spacing: -0.15px;
+}
+.card-tip { font-size: 11.5px; font-weight: 400; color: var(--text-faint); margin-left: 10px; }
+
+/* ---------- KPI 卡 ---------- */
+.stat-card { border-radius: var(--radius); }
+.stat-card .value { font-size: 26px; }
+/* 首张「旗舰卡」：深墨蓝底 + 金色顶线，全场唯一的重色块，作为视觉锚点 */
+.stat-card.hero-card {
+  background:
+    radial-gradient(300px 180px at 92% -20%, rgba(108, 147, 200, 0.45) 0%, rgba(13, 17, 23, 0) 68%),
+    linear-gradient(150deg, #1a2230 0%, #141b26 58%, #0f141c 100%);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 2px 4px rgba(13, 17, 23, 0.10),
+    0 18px 40px -20px rgba(13, 17, 23, 0.50);
+  overflow: hidden;
+}
+.stat-card.hero-card::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px;
+  background: linear-gradient(90deg, #9fbad9, rgba(155, 184, 217, 0.15));
+}
+.stat-card.hero-card::after {
+  background: radial-gradient(circle, rgba(155, 184, 217, 0.14) 0%, transparent 70%);
+}
+.stat-card.hero-card .label { color: rgba(230, 236, 245, 0.66); }
+.stat-card.hero-card .value { color: #fff !important; text-shadow: 0 2px 18px rgba(108, 147, 200, 0.45); }
+.stat-card.hero-card .sub { color: rgba(188, 208, 232, 0.82); }
+
+.dept-card { cursor: pointer; border-radius: var(--radius); }
+.dept-card:hover { border-color: var(--primary-200); }
+.dept-name {
+  font-size: 15px; font-weight: 650;
+  display: flex; align-items: center; gap: 9px; color: var(--text-main);
+}
+.dept-name :deep(.el-icon) { color: var(--primary); }
+.dept-stat {
+  font-size: 23px; font-weight: 700; color: var(--primary-700);
+  margin-top: 12px; letter-spacing: -0.6px;
+}
+.dept-sub { font-size: 11.5px; color: var(--text-weak); margin-top: 5px; }
 
 /* 部门业绩汇总卡 */
-.dept-sum-card { cursor: pointer; border-radius: 10px; border: 1px solid var(--border); transition: .15s; }
-.dept-sum-card:hover { border-color: var(--primary); box-shadow: var(--shadow-hover); }
-.ds-name { font-size: 14px; font-weight: 600; }
-.ds-amount { font-size: 24px; font-weight: 800; color: var(--primary); margin: 8px 0 2px; }
-.ds-sub { font-size: 12px; color: var(--text-sub); }
+.dept-sum-card {
+  cursor: pointer; border-radius: var(--radius);
+  border: 1px solid var(--border-soft); transition: all 240ms var(--ease-spring);
+}
+.dept-sum-card:hover {
+  border-color: var(--primary-200);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
+}
+.ds-name { font-size: 13.5px; font-weight: 600; color: var(--text-sub); }
+.ds-amount {
+  font-size: 25px; font-weight: 700; color: var(--text-main);
+  margin: 10px 0 3px; letter-spacing: -0.8px;
+}
+.ds-sub { font-size: 11.5px; color: var(--text-weak); }
 
-/* 新手引导条 */
+/* ---------- 新手引导：弱化为「便签」而非「广告横幅」 ---------- */
 .guide {
-  display: flex; align-items: center; gap: 12px;
-  background: linear-gradient(135deg, #eef3ff, #f6f9ff);
-  border: 1px solid var(--primary-100); border-radius: var(--radius);
-  padding: 12px 16px; margin-bottom: 14px;
+  display: flex; align-items: center; gap: 14px;
+  background: #fff;
+  border: 1px solid var(--border-soft);
+  border-left: 2px solid var(--primary);
+  border-radius: var(--radius-sm);
+  padding: 13px 18px; margin-bottom: 16px;
+  box-shadow: var(--shadow-xs);
 }
-.guide-icon { font-size: 22px; }
+.guide-icon { font-size: 17px; opacity: 0.85; }
 .guide-body { flex: 1; }
-.guide-title { font-size: 14px; font-weight: 700; color: var(--primary); margin-bottom: 3px; }
-.guide-text { font-size: 12.5px; color: var(--text-sub); line-height: 1.7; }
-.guide-text b { color: var(--text-main); }
+.guide-title {
+  font-size: 12.5px; font-weight: 650; color: var(--text-main);
+  margin-bottom: 3px; letter-spacing: 0.01em;
+}
+.guide-text { font-size: 12px; color: var(--text-sub); line-height: 1.65; }
+.guide-text b { color: var(--text-main); font-weight: 650; }
 
-/* 欢迎条 */
+/* ---------- 欢迎条 ---------- */
 .welcome {
+  position: relative; overflow: hidden;
   display: flex; justify-content: space-between; align-items: center;
-  background: var(--brand-gradient); color: #fff; border-radius: var(--radius);
-  padding: 18px 22px; margin-bottom: 14px; box-shadow: var(--shadow-card);
+  background:
+    radial-gradient(520px 240px at 88% -34%, rgba(108, 147, 200, 0.42) 0%, rgba(13, 17, 23, 0) 70%),
+    linear-gradient(118deg, #1a2230 0%, #141b26 56%, #0f141c 100%);
+  color: #fff; border-radius: var(--radius);
+  padding: 22px 26px; margin-bottom: 18px;
+  box-shadow:
+    0 2px 4px rgba(11, 26, 46, 0.08),
+    0 20px 46px -22px rgba(11, 26, 46, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.07);
 }
-.welcome .hi { font-size: 20px; font-weight: 700; }
-.welcome .hi .wave { font-size: 18px; }
-.welcome .date { font-size: 13px; opacity: .9; margin-top: 4px; }
-.welcome-right { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.welcome-right :deep(.el-tag) { border: none; }
+/* 底部一道金蓝渐变线：全站统一的「贵感签名」 */
+.welcome::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+  background: linear-gradient(90deg,
+    rgba(108, 147, 200, 0.9) 0%,
+    rgba(155, 184, 217, 0.5) 42%,
+    rgba(155, 184, 217, 0) 100%);
+}
+/* 右上角极淡网格，避免大面积纯色显廉价 */
+.welcome::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.4;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 38px 38px;
+  mask-image: linear-gradient(90deg, transparent 30%, #000 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 30%, #000 100%);
+}
+.welcome-left { position: relative; z-index: 1; }
+.welcome .hi {
+  font-size: 21px; font-weight: 700; letter-spacing: -0.3px;
+  display: flex; align-items: center; gap: 8px;
+}
+.welcome .hi .wave { font-size: 17px; }
+.welcome .date {
+  font-size: 12.5px; color: rgba(226, 236, 248, 0.68); margin-top: 6px;
+  letter-spacing: 0.02em;
+}
+.welcome-right {
+  display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;
+  position: relative; z-index: 1;
+}
+.welcome-right :deep(.el-tag) {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(6px);
+  font-weight: 550;
+}
+.welcome-right :deep(.el-tag--primary) {
+  background: linear-gradient(135deg, rgba(74, 111, 240, 0.9), rgba(42, 79, 212, 0.9));
+  border-color: rgba(122, 152, 255, 0.4);
+  color: #fff;
+}
+.welcome-right :deep(.el-tag--warning) {
+  background: rgba(214, 186, 134, 0.16);
+  border-color: rgba(214, 186, 134, 0.40);
+  color: #e8d5ae;
+}
 
-/* 仪表盘脚注 */
-.gauge-foot { display: flex; justify-content: space-around; font-size: 12px; color: var(--text-sub); margin-top: 4px; }
+.gauge-foot {
+  display: flex; justify-content: space-around;
+  font-size: 11.5px; color: var(--text-weak); margin-top: 6px;
+  padding-top: 12px; border-top: 1px solid var(--border-soft);
+}
 
-/* 预警中心 */
+/* ---------- 预警卡 ---------- */
 .warn-tile {
-  border-radius: var(--radius-sm); padding: 14px 12px; cursor: pointer;
-  text-align: center; border: 1px solid var(--border-soft); transition: transform .15s, box-shadow .15s;
-  background: #fafbfc;
+  border-radius: var(--radius-sm); padding: 16px 17px; cursor: pointer;
+  border: 1px solid var(--border-soft); background: var(--card-bg);
+  transition: all 240ms var(--ease-spring);
+  position: relative; overflow: hidden;
 }
-.warn-tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
-.warn-icon { font-size: 22px; }
-.warn-num { font-size: 26px; font-weight: 800; margin: 4px 0 2px; }
-.warn-label { font-size: 12px; color: var(--text-sub); }
+.warn-tile::after {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+  opacity: 0.9;
+}
+.warn-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+  border-color: var(--primary-200);
+}
+.warn-top {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.warn-icon {
+  width: 34px; height: 34px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; flex: none;
+}
+.warn-num {
+  font-size: 27px; font-weight: 750; line-height: 1;
+  letter-spacing: -1px; font-variant-numeric: tabular-nums;
+}
+.warn-label {
+  font-size: 12px; color: var(--text-sub); margin-top: 11px;
+  font-weight: 500; letter-spacing: 0.02em;
+}
+.warn-danger .warn-icon { background: var(--danger-50); color: var(--danger); }
 .warn-danger .warn-num { color: var(--danger); }
+.warn-danger::after { background: linear-gradient(180deg, var(--danger-500), var(--danger)); }
+.warn-warning .warn-icon { background: var(--warning-50); color: var(--warning); }
 .warn-warning .warn-num { color: var(--warning); }
+.warn-warning::after { background: linear-gradient(180deg, var(--warning-500), var(--warning)); }
+.warn-success .warn-icon { background: var(--success-50); color: var(--success); }
+.warn-success .warn-num { color: var(--success); }
 
-/* 到期明细 */
-.exp-list { margin-top: 14px; border-top: 1px dashed var(--border); padding-top: 10px; }
-.exp-title { font-size: 12px; color: var(--text-sub); margin-bottom: 8px; }
-.exp-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--border-soft); }
-.exp-name { flex: 1; font-weight: 500; }
-.exp-days { color: var(--warning); font-size: 12px; }
-.exp-days.urgent { color: var(--danger); font-weight: 600; }
+/* ---------- 到期明细 ---------- */
+.exp-list {
+  margin-top: 16px; border-top: 1px solid var(--border-soft); padding-top: 14px;
+}
+.exp-title {
+  font-size: 11px; color: var(--text-weak); margin-bottom: 10px;
+  letter-spacing: 0.10em; font-weight: 650; text-transform: uppercase;
+}
+.exp-row {
+  display: flex; align-items: center; gap: 11px; padding: 9px 0;
+  font-size: 13px; border-bottom: 1px solid var(--border-soft);
+  transition: background var(--dur-fast);
+}
+.exp-row:last-child { border-bottom: none; }
+.exp-row:hover { background: var(--surface-2); }
+.exp-name { flex: 1; font-weight: 550; color: var(--text-main); }
+.exp-days {
+  color: var(--warning); font-size: 11.5px; font-weight: 550;
+  font-variant-numeric: tabular-nums;
+}
+.exp-days.urgent { color: var(--danger); font-weight: 700; }
 </style>

@@ -139,16 +139,16 @@ onMounted(async () => { loading.value = true; await Promise.all([loadToday(), lo
 .rule-card, .punch-card, .detail-card { border-radius: 10px; border: 1px solid var(--border); margin-bottom: 14px; }
 .card-title { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
 .rule-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
-.rule-icon { width: 38px; height: 38px; border-radius: 10px; background: #eef3ff; color: #2f6fed; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.rule-icon { width: 38px; height: 38px; border-radius: 10px; background: #eef3ff; color: #2a4fd4; display: flex; align-items: center; justify-content: center; font-size: 20px; }
 .rule-label { font-size: 12px; color: var(--text-sub); }
 .rule-value { font-size: 14px; font-weight: 600; margin-top: 2px; }
 .rule-tip { margin-top: 12px; }
 .punch-body { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
 .punch-clock { display: flex; flex-direction: column; gap: 4px; }
 .punch-icon { font-size: 40px; color: #c0c4cc; }
-.punch-icon.done { color: #0f9960; }
-.punch-icon.late { color: #d93026; }
-.punch-icon.early { color: #d9822b; }
+.punch-icon.done { color: #12865a; }
+.punch-icon.late { color: #c3372c; }
+.punch-icon.early { color: #c07a12; }
 .punch-status { font-size: 18px; font-weight: 700; }
 .punch-time { font-size: 13px; color: var(--text-sub); }
 .punch-time.dim { color: #909399; }

@@ -16,7 +16,7 @@
     </view>
     <button class="btn btn-pink btn-block" loading="{{loading}}" bindtap="onLogin">登 录</button>
     <button class="btn btn-green btn-block btn-ghost" style="margin-top:20rpx" bindtap="onWx">微信一键登录</button>
-    <view class="tip">演示账号：admin / admin123</view>
-    <view class="tip" style="opacity:.55;font-size:20rpx;margin-top:8rpx">构建版本 BUILD-20260925-2300 · 本地后端</view>
+    <view class="tip">员工使用公司分配的账号登录 · 首次登录后请修改密码</view>
+    <view class="tip" style="opacity:.55;font-size:20rpx;margin-top:8rpx">财税企管云 · 企业内部管理平台</view>
   </view>
 </view>

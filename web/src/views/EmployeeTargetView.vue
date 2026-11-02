@@ -11,7 +11,7 @@
       <el-row :gutter="14">
         <el-col :span="6"><div class="sum-label">部门人数</div><div class="sum-val">{{ summary.member_count }} 人</div></el-col>
         <el-col :span="6"><div class="sum-label">目标合计</div><div class="sum-val">¥{{ wan(summary.total_target) }}</div></el-col>
-        <el-col :span="6"><div class="sum-label">已达成</div><div class="sum-val" style="color:#d93026">¥{{ wan(summary.total_achieved) }}</div></el-col>
+        <el-col :span="6"><div class="sum-label">已达成</div><div class="sum-val" style="color:#c3372c">¥{{ wan(summary.total_achieved) }}</div></el-col>
         <el-col :span="6">
           <div class="sum-label">整体达成率</div>
           <el-progress type="dashboard" :width="70" :percentage="clamp(summary.completion)"
@@ -108,7 +108,7 @@ const metricLabel = computed(() => {
 const fmt = (n) => (n === undefined || n === null ? '0' : Number(n).toLocaleString('zh-CN', { maximumFractionDigits: 0 }))
 const wan = (n) => (n >= 10000 ? (n / 10000).toFixed(1) + '万' : fmt(n))
 const clamp = (v) => Math.max(0, Math.min(100, Number(v) || 0))
-const progressColor = (v) => (v >= 100 ? '#0f9960' : (v >= 60 ? '#d9822b' : '#d93026'))
+const progressColor = (v) => (v >= 100 ? '#12865a' : (v >= 60 ? '#c07a12' : '#c3372c'))
 
 const setVisible = ref(false)
 const batchVisible = ref(false)

@@ -1,8 +1,8 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="转接外勤任务"
-    width="560px"
+    title="合同订单流转外勤"
+    width="580px"
     @update:model-value="$emit('update:modelValue', $event)"
     @closed="reset"
   >
@@ -19,14 +19,8 @@
         </el-select>
       </el-form-item>
       <el-form-item label="业务类型" required>
-        <el-select v-model="form.business_type" style="width:100%">
-          <el-option label="工商注册" value="REGISTER" />
-          <el-option label="公司注销" value="CANCEL" />
-          <el-option label="工商变更" value="CHANGE" />
-          <el-option label="地址异常" value="ADDRESS_ABNORMAL" />
-          <el-option label="税务报到" value="TAX_REGISTER" />
-          <el-option label="异常处理" value="ABNORMAL" />
-          <el-option label="通用" value="GENERAL" />
+        <el-select v-model="form.business_type" style="width:100%" @change="onBusinessTypeChange">
+          <el-option v-for="b in businessTypeOptions" :key="b.value" :label="b.label" :value="b.value" />
         </el-select>
       </el-form-item>
       <el-form-item label="任务类型" required>
@@ -44,6 +38,30 @@
           style="width:100%"
         />
       </el-form-item>
+      <el-form-item label="下发外勤人员">
+        <el-select
+          v-model="form.assignee"
+          placeholder="留空则进入外勤任务池，由外勤主管派单"
+          clearable
+          filterable
+          :loading="staffLoading"
+          style="width:100%"
+        >
+          <el-option v-for="u in staffOptions" :key="u.id" :label="u.name" :value="u.id">
+            <span>{{ u.name }}</span>
+            <span class="opt-dept">{{ u.dept }}</span>
+          </el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="备注">
+        <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="选填，如：客户要求本周内办结" />
+      </el-form-item>
+      <el-alert
+        type="success"
+        :closable="false"
+        show-icon
+        :title="form.assignee ? '已选择外勤人员：生成后直接出现在该外勤的任务池并留痕' : '未指定外勤：生成后进入外勤任务池，等待派单或外勤自行接单'"
+      />
     </el-form>
     <template #footer>
       <el-button @click="$emit('update:modelValue', false)">取消</el-button>
@@ -56,6 +74,7 @@
 import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import http from '@/api'
+import { orgApi } from '@/api'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -79,11 +98,40 @@ const form = reactive({
   customer_name: '',
   customer_type: 'ENTERPRISE',
   business_type: 'REGISTER',
-  task_type: '',
+  task_type: '工商注册',
   address: '',
   due_at: '',
+  assignee: null,
+  remark: '',
 })
 const submitting = ref(false)
+
+// 下发人员名单：真实在职员工（后端已过滤 is_active）
+const staffOptions = ref([])
+const staffLoading = ref(false)
+
+async function loadStaff() {
+  if (staffOptions.value.length || staffLoading.value) return
+  staffLoading.value = true
+  try {
+    const res = await orgApi.users({ page_size: 500 })
+    const rows = Array.isArray(res) ? res : (res.results || [])
+    staffOptions.value = rows.map((u) => ({
+      id: u.id,
+      name: u.display_name || u.first_name || u.username,
+      dept: u.department_name || '',
+    }))
+  } catch (e) {
+    staffOptions.value = []
+  } finally {
+    staffLoading.value = false
+  }
+}
+
+function onBusinessTypeChange(v) {
+  const hit = businessTypeOptions.find((b) => b.value === v)
+  if (hit) form.task_type = hit.label
+}
 
 watch(
   () => props.modelValue,
@@ -92,9 +140,12 @@ watch(
       form.customer_name = props.customerName || ''
       form.customer_type = 'ENTERPRISE'
       form.business_type = 'REGISTER'
-      form.task_type = ''
+      form.task_type = '工商注册'
       form.address = ''
       form.due_at = ''
+      form.assignee = null
+      form.remark = ''
+      loadStaff()
     }
   }
 )
@@ -106,7 +157,7 @@ async function submit() {
   if (!form.task_type) return ElMessage.warning('请填写任务类型')
   submitting.value = true
   try {
-    await http.post('/growth/field-tasks/', {
+    const payload = {
       title: `${form.customer_name} · ${form.task_type}`,
       customer_name: form.customer_name,
       customer_type: form.customer_type,
@@ -115,14 +166,26 @@ async function submit() {
       from_order_no: props.sourceOrderNo || '',
       address: form.address || '',
       due_at: form.due_at || null,
-    })
-    ElMessage.success('已转接外勤，外勤任务池将收到该任务')
+      remark: form.remark || '',
+    }
+    if (form.assignee) payload.assignee = form.assignee
+    const res = await http.post('/growth/field-tasks/', payload)
+    const no = res?.task_no ? `（派单号 ${res.task_no}）` : ''
+    ElMessage.success(
+      form.assignee
+        ? `已下发外勤${no}，该外勤任务池即时可见`
+        : `已转接外勤${no}，外勤任务池将收到该任务`
+    )
     emit('transferred')
     emit('update:modelValue', false)
   } catch (e) {
-    ElMessage.error('转接失败，请重试')
+    ElMessage.error('流转失败，请重试')
   } finally {
     submitting.value = false
   }
 }
 </script>
+
+<style scoped>
+.opt-dept { float: right; color: #a8abb2; font-size: 12px; }
+</style>

@@ -13,4 +13,7 @@ urlpatterns = [
     path("training/videos/<int:pk>/", views.training_video_detail, name="training-video-detail"),
     # --- 纯新增：系统资源对接配置（域名/存储/服务器 直连官方） ---
     path("", include(resource_router.urls)),
+    # --- 钉钉通讯录同步（2026-10-28 增量，仅老板/人事） ---
+    path("dingtalk/status/", views.dingtalk_status, name="dingtalk-status"),
+    path("dingtalk/sync/", views.dingtalk_sync, name="dingtalk-sync"),
 ]

@@ -357,21 +357,43 @@ def douyin_account(q):
 
 # ---------------- 云账房 ----------------
 def yunzhangfang_overview():
+    """云账房总览（2026-10-29 改造：读本地账套台账，不再返回硬编码假客户）
+
+    - books：来自会计部「账套」表（可在页面上增删改）
+    - pending_vouchers：本月度做账任务中未完成的客户数
+    - 已配置 YUNZHANGFANG_API_KEY 时 is_demo=False（真实对接待开放接口后接管）
+    """
+    from apps.accounting.models import BookSet, MonthlyTask
+    qs = BookSet.objects.filter(is_deleted=False).select_related("client__customer")
+    books = [
+        {
+            "id": b.id,
+            "name": b.name,
+            "period": b.period,
+            "vouchers": b.voucher_count,
+            "taxpayer_type": b.get_taxpayer_type_display(),
+            "status": b.get_status_display(),
+            "yz_account_no": b.yz_account_no,
+            "client_name": b.client.customer.name if b.client_id and b.client.customer_id else "",
+        }
+        for b in qs[:300]
+    ]
+    pending = MonthlyTask.objects.filter(
+        is_deleted=False, status__in=("WAIT_DOC", "DOING", "WAIT_CONFIRM")
+    ).count()
+    configured = _has_key("YUNZHANGFANG_API_KEY")
     return {
-        "account_name": "云南某某财税服务有限公司",
-        "books": [
-            {"name": "云南某某财税服务有限公司（一般纳税人）", "vouchers": 248, "period": "2026-08"},
-            {"name": "昆明云创科技有限公司（小规模）", "vouchers": 96, "period": "2026-08"},
-        ],
-        "reports": [
-            {"name": "资产负债表", "period": "2026-08", "assets": 1286500.00,
-             "liabilities": 432000.00, "equity": 854500.00},
-            {"name": "利润表", "period": "2026-08", "revenue": 865000.00, "profit": 132500.00},
-        ],
-        "pending_vouchers": 12,
+        "account_name": "云账房 · 本地账套台账",
+        "books": books,
+        "reports": [],
+        "pending_vouchers": pending,
         "portal_url": "https://www.yunzhangfang.com",
-        "is_demo": True,
-        "source": "demo",
+        "is_demo": not configured,
+        "has_api_key": configured,
+        "source": "local" if books else "empty",
+        "book_total": len(books),
+        "voucher_total": sum(b["vouchers"] or 0 for b in books),
+        "hint": "" if books else "尚未维护账套，请在下方「新增账套」添加客户的做账主体信息",
     }
 
 

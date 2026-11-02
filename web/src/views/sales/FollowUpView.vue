@@ -44,6 +44,13 @@
         <el-table-column prop="content" label="跟进内容" min-width="220" show-overflow-tooltip />
         <el-table-column prop="next_at" label="下次跟进" width="160" />
         <el-table-column prop="next_action" label="下一步" min-width="160" show-overflow-tooltip />
+        <el-table-column label="操作" width="110" fixed="right">
+          <template #default="{row}">
+            <!-- 2026-10-30 增量：跟进记录支持录错后编辑 / 删除（本人或管理层） -->
+            <el-button v-if="canModify(row)" link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
+            <el-button v-if="canModify(row)" link type="danger" size="small" @click="removeFollowup(row)">删除</el-button>
+          </template>
+        </el-table-column>
       </el-table>
       <div class="pager" v-if="total > pageSize">
         <el-pagination background layout="total, prev, pager, next" :total="total"
@@ -91,10 +98,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import { salesApi } from '@/api'
+import { useUserStore } from '@/store/user'
 
 const wayOptions = [
   { value: 'PHONE', label: '电话' }, { value: 'WECHAT', label: '微信' },
@@ -160,6 +168,53 @@ function openCreate(seed) {
   if (seed && seed.lead) form.lead = seed.lead
   if (seed && seed.customer) form.customer = seed.customer
   visible.value = true
+}
+
+// —— 2026-10-30 增量：编辑 / 删除跟进记录（本人或管理层可操作）——
+const store = useUserStore()
+const myId = computed(() => store.userInfo?.id)
+const canManageAll = computed(() => store.isBoss || store.isManager || store.isSuper)
+function canModify(row) {
+  if (!row) return false
+  if (canManageAll.value) return true
+  return !!myId.value && row.user === myId.value
+}
+// ISO 时间 → 'YYYY-MM-DD HH:mm:ss'（el-date-picker value-format 需要）
+function normTime(v) {
+  if (!v) return ''
+  if (typeof v === 'string' && v.includes('T')) {
+    const d = new Date(v)
+    if (!isNaN(d.getTime())) {
+      const p = n => String(n).padStart(2, '0')
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+    }
+  }
+  return v
+}
+function openEdit(row) {
+  resetForm()
+  editingId.value = row.id
+  form.lead = row.lead || null
+  form.customer = row.customer || null
+  form.way = row.way || 'PHONE'
+  form.content = row.content || ''
+  form.next_at = normTime(row.next_at)
+  form.next_action = row.next_action || ''
+  visible.value = true
+}
+async function removeFollowup(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除该条跟进记录吗？（${row.content ? String(row.content).slice(0, 20) : '#' + row.id}）删除后不可恢复。`,
+      '删除确认',
+      { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' }
+    )
+  } catch { return }
+  try {
+    await salesApi.deleteFollowup(row.id)
+    ElMessage.success('已删除')
+    reload(); loadUpcoming()
+  } catch { /* 拦截器已提示 */ }
 }
 async function submit() {
   if (!form.content) return ElMessage.warning('请填写跟进内容')

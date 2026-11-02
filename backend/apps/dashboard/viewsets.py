@@ -14,6 +14,7 @@ from apps.accounting.models import MonthlyTask, AccountingClient
 from apps.ops.models import AdDailyStat, AdPlatform
 from apps.hr.models import Attendance, LeaveApplication
 from apps.reports.models import DailyReport
+from apps.common.permissions import is_boss, is_hr_scope
 
 
 def _month_str(d=None):
@@ -28,6 +29,27 @@ def _month_range(month):
     else:
         end = date(y, m + 1, 1) - timedelta(days=1)
     return start, end
+
+
+# ---------- 2026-10-29 权限专项：部门业绩/公司业绩数据范围 ----------
+DEPT_CODE_LABEL = {"SALES": "电销部", "ACCOUNT": "会计部", "OPS": "运营部"}
+
+
+def can_view_dept(request, code):
+    """能否查看指定部门的业绩：老板/总经理全部；其余账号仅本人所在部门"""
+    u = request.user
+    if is_boss(u):
+        return True
+    my_code = getattr(getattr(u, "department", None), "code", None)
+    return bool(my_code and my_code == code)
+
+
+def visible_dept_codes(request):
+    """当前账号可查看业绩的部门编码列表"""
+    if is_boss(request.user):
+        return list(DEPT_CODE_LABEL.keys())
+    my_code = getattr(getattr(request.user, "department", None), "code", None)
+    return [my_code] if my_code in DEPT_CODE_LABEL else []
 
 
 def _scope_users(request):
@@ -231,7 +253,13 @@ def todo(request):
 
 @api_view(["GET"])
 def department_detail(request, code):
-    """单部门详情看板"""
+    """单部门详情看板
+
+    2026-10-29 权限专项：老板/总经理可看全部部门；
+    其他账号只能看本人所在部门，越权访问直接 403。
+    """
+    if not can_view_dept(request, code):
+        return Response({"code": 403, "msg": "无权查看其他部门数据"}, status=403)
     month = request.query_params.get("month") or _month_str()
     start, end = _month_range(month)
     dept = Department.objects.filter(code=code, is_deleted=False).first()
@@ -300,7 +328,16 @@ def department_detail(request, code):
 
 @api_view(["GET"])
 def department_members(request, code):
-    """部门成员业绩目标与达成进度：按月返回每个成员的月度目标与本月业绩"""
+    """部门成员业绩目标与达成进度：按月返回每个成员的月度目标与本月业绩
+
+    2026-10-29 权限专项：员工明细只对老板/总经理与本部门主管开放，
+    普通员工只能看部门汇总（department_detail），不能拉本部门同事的明细。
+    """
+    u = request.user
+    if not is_boss(u):
+        my_code = getattr(getattr(u, "department", None), "code", None)
+        if not (my_code and my_code == code) or u.role not in ("MANAGER", "LEADER", "HR"):
+            return Response({"code": 403, "msg": "无权查看该部门员工明细"}, status=403)
     month = request.query_params.get("month") or _month_str()
     rows, summary = _members_for(code, month)
     if rows is None:
@@ -696,8 +733,15 @@ def ai_chat(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def company_performance(request):
-    """全公司业绩统计：统一全公司（不分部门），含目标与完成率、部门对比、业绩排行"""
+    """业绩统计：老板/总经理看全公司；其他人只看本人所在部门（向上汇总由老板端呈现）
+
+    2026-10-29 权限专项：原来任何账号都能拉全公司业绩与全员排行，属跨部门数据泄露，
+    现按角色收敛 —— 部门业绩自动向上汇总到老板 / 总经理账号。
+    """
     month = request.query_params.get("month") or _month_str()
+    viewer = request.user
+    boss_view = is_boss(viewer)
+    allowed_codes = visible_dept_codes(request) or ([] if boss_view else [])
     start, end = _month_range(month)
 
     contracts = Contract.objects.filter(signed_date__gte=start, signed_date__lte=end)
@@ -716,6 +760,8 @@ def company_performance(request):
 
     departments = []
     for code, name in [("SALES", "电销部"), ("ACCOUNT", "会计部"), ("OPS", "运营部")]:
+        if code not in allowed_codes:
+            continue
         dc = contracts.filter(sales__department__code=code)
         d = dc.aggregate(total=Sum("amount"), received=Sum("received"))
         d_target = float(
@@ -733,8 +779,10 @@ def company_performance(request):
             "member_count": member_count,
         })
 
+    # 排行：老板看全公司；其他人只看本部门（不暴露其他部门同事业绩）
+    rank_base = contracts if boss_view else contracts.filter(sales__department__code__in=allowed_codes)
     top_rows = (
-        contracts.values("sales")
+        rank_base.values("sales")
         .annotate(signed_amount=Sum("amount"))
         .order_by("-signed_amount")[:10]
     )
@@ -759,8 +807,17 @@ def company_performance(request):
             "completion_rate": _rate(float(r["signed_amount"] or 0), ptarget),
         })
 
+    # 非老板视角：company 字段只回本部门合计，避免泄露全公司经营数据
+    if not boss_view:
+        mine = [d for d in departments]
+        signed_amount = sum(d["signed_amount"] for d in mine)
+        received_amount = sum(d["received_amount"] for d in mine)
+        company_target = sum(d["target_amount"] for d in mine)
+        contract_count = contracts.filter(sales__department__code__in=allowed_codes).count()
+
     return Response({
         "month": month,
+        "scope": "COMPANY" if boss_view else "DEPARTMENT",
         "company": {
             "signed_amount": signed_amount,
             "received_amount": received_amount,

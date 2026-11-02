@@ -101,9 +101,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="负责人">
-          <el-select v-model="deptForm.leader" placeholder="选择负责人" clearable style="width:100%">
-            <el-option v-for="u in users" :key="u.id" :label="u.display_name || u.username" :value="u.id" />
-          </el-select>
+          <PersonSelect v-model="deptForm.leader" placeholder="选择负责人" />
         </el-form-item>
         <el-form-item label="排序"><el-input-number v-model="deptForm.order" :min="0" /></el-form-item>
         <el-form-item label="部门职责"><el-input v-model="deptForm.description" type="textarea" :rows="2" /></el-form-item>
@@ -158,6 +156,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { orgApi } from '@/api/index'
 import { useUserStore } from '@/store/user'
+import PersonSelect from '@/components/PersonSelect.vue'
 
 const store = useUserStore()
 const canManage = computed(() => store.isBoss || store.isManager || store.isHR || store.isSuper)

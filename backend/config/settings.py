@@ -75,6 +75,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "apps.common.middleware.DemoModeMiddleware",  # 演示模式全局只读开关（2026-10-29）
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -245,4 +246,14 @@ WECHAT_MINI = {
         # 审批结果通知（请假/报销/加班等通用）
         "APPROVAL_RESULT": os.environ.get("WX_TMPL_APPROVAL_RESULT", ""),
     },
+}
+
+# ---------- 钉钉企业内部应用（HR 通讯录同步，2026-10-28 增量）----------
+# 设计原则同微信/短信：未配置凭证时全部静默降级，绝不影响主流程。
+# 凭证获取：钉钉管理后台 → 应用开发 → 创建企业内部应用（H5微应用）→ 凭证与基础信息（AppKey/AppSecret）
+# 权限要求（应用后台「权限管理」开通）：通讯录部门信息读权限 + 通讯录部门成员读权限
+DINGTALK = {
+    "APP_KEY": os.environ.get("DINGTALK_APP_KEY", ""),
+    "APP_SECRET": os.environ.get("DINGTALK_APP_SECRET", ""),
+    "AGENT_ID": os.environ.get("DINGTALK_AGENT_ID", ""),
 }

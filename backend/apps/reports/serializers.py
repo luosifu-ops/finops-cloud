@@ -2,6 +2,7 @@
 from rest_framework import serializers
 from .models import (
     ReportTemplate, DailyReport, WeeklyReport, MonthlyReport, ReviewReport, ReportComment,
+    TeamSummary,
 )
 
 
@@ -70,6 +71,30 @@ class ReviewReportSerializer(serializers.ModelSerializer):
                   "title", "background", "process", "cause", "improvement",
                   "action_plan", "submitted_at", "created_at"]
         read_only_fields = ["user", "submitted_at", "created_at"]
+
+
+class TeamSummarySerializer(serializers.ModelSerializer):
+    """团队汇总（content 可编辑，其余字段由系统自动汇总）"""
+    kind_label = serializers.CharField(source="get_kind_display", read_only=True)
+    department_name = serializers.CharField(source="department.name", read_only=True)
+    team_name = serializers.CharField(source="team.name", read_only=True)
+    period_label = serializers.ReadOnlyField()
+    edited_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TeamSummary
+        fields = ["id", "kind", "kind_label", "period", "period_label",
+                  "department", "department_name", "team", "team_name",
+                  "title", "content", "stats", "member_total", "submitted_total",
+                  "source_ids", "is_edited", "edited_by", "edited_by_name", "edited_at",
+                  "created_at", "updated_at"]
+        read_only_fields = ["id", "kind", "period", "department", "team",
+                            "stats", "member_total", "submitted_total", "source_ids",
+                            "edited_by", "edited_at", "created_at", "updated_at"]
+
+    def get_edited_by_name(self, obj):
+        u = obj.edited_by
+        return (getattr(u, "display_name", None) or getattr(u, "username", "")) if u else ""
 
 
 class ReportCommentSerializer(serializers.ModelSerializer):

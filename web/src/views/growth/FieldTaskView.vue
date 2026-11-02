@@ -1,17 +1,19 @@
 <template>
-  <div class="field-tasks">
-    <el-card shadow="never">
-      <template #header>
-        <div class="card-header">
-          <span>外勤任务池 · 精细化进度节点管理</span>
-          <div>
-            <el-button v-if="canManage" type="success" plain @click="openFromDeal">成交单 → 生成外勤任务</el-button>
-            <el-button type="primary" @click="openCreate">+ 新建外勤任务</el-button>
-            <el-button @click="loadData">刷新</el-button>
-          </div>
-        </div>
-      </template>
+  <div class="page">
+    <div class="page-head">
+      <div>
+        <h2 class="page-title">外勤任务池</h2>
+        <p class="page-sub">各部门接单后单据统一流转到此池；外勤主管可派单，外勤本人可将手上单据再分配给其他外勤人员</p>
+      </div>
+      <div class="page-actions">
+        <el-button type="success" plain @click="openTransfer">跨部门订单转接</el-button>
+        <el-button v-if="canManage" type="success" plain @click="openFromDeal">成交单 → 生成外勤任务</el-button>
+        <el-button type="primary" @click="openCreate">+ 新建外勤任务</el-button>
+        <el-button @click="loadData">刷新</el-button>
+      </div>
+    </div>
 
+    <div class="card ft-card">
       <el-form :inline="true" class="filter-bar">
         <el-form-item label="状态">
           <el-select v-model="filters.status" placeholder="全部" clearable style="width:140px">
@@ -23,45 +25,59 @@
         </el-form-item>
       </el-form>
 
-      <el-table :data="list" v-loading="loading" border stripe size="default" max-height="560">
-        <el-table-column label="外勤单号" width="140">
+      <el-table :data="list" v-loading="loading" size="default" max-height="600">
+        <el-table-column label="外勤单号" width="182">
           <template #default="{ row }"><span class="order-no">{{ row.task_no || formatOrderNo(row) }}</span></template>
         </el-table-column>
-        <el-table-column prop="customer_name" label="客户名称" min-width="120" />
-        <el-table-column label="客户类型" width="90">
+        <el-table-column prop="customer_name" label="客户名称" min-width="130" show-overflow-tooltip />
+        <el-table-column label="客户类型" width="88">
           <template #default="{ row }"><el-tag size="small">{{ row.customer_type_label }}</el-tag></template>
         </el-table-column>
-        <el-table-column label="业务类型" width="100">
-          <template #default="{ row }"><el-tag type="warning" size="small">{{ row.business_type_label }}</el-tag></template>
-        </el-table-column>
-        <el-table-column prop="task_type" label="任务类型" width="120" />
-        <el-table-column prop="from_order_no" label="来源成交单号" width="120" />
-        <el-table-column label="状态" width="110">
-          <template #default="{ row }"><el-tag :type="statusType(row.status)" size="small">{{ row.status_label }}</el-tag></template>
-        </el-table-column>
-        <el-table-column prop="assignee_name" label="外勤人员" width="100" />
-        <el-table-column prop="creator_name" label="下单人" width="100" />
-        <el-table-column label="当前进度" width="140">
-          <template #default="{ row }"><span class="latest-node">{{ row.latest_node || '-' }}</span></template>
-        </el-table-column>
-        <el-table-column label="进度节点" min-width="200">
+        <el-table-column label="业务类型" width="126">
           <template #default="{ row }">
-            <div class="nodes-mini">
-              <span v-for="n in (row.nodes || [])" :key="n.id" class="node-pill" :class="n.status.toLowerCase()">
-                {{ n.node_label }}
-              </span>
-            </div>
+            <el-tag type="warning" size="small">{{ row.business_type_label }}</el-tag>
+            <div v-if="row.task_type && row.task_type !== row.business_type_label" class="sub-type">{{ row.task_type }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column prop="from_order_no" label="来源成交单号" width="126" show-overflow-tooltip />
+        <el-table-column label="状态" width="88">
+          <template #default="{ row }"><el-tag :type="statusType(row.status)" size="small">{{ row.status_label }}</el-tag></template>
+        </el-table-column>
+        <el-table-column prop="assignee_name" label="外勤人员" width="92" />
+        <el-table-column prop="creator_name" label="下单人" width="88" />
+        <el-table-column label="当前进度" width="140" show-overflow-tooltip>
+          <template #default="{ row }"><span class="latest-node">{{ row.latest_node || '-' }}</span></template>
+        </el-table-column>
+        <el-table-column label="节点" width="92" align="center">
+          <template #default="{ row }">
+            <el-tooltip placement="top" effect="dark" :disabled="!(row.nodes || []).length">
+              <template #content>
+                <div class="node-tip">
+                  <span v-for="n in (row.nodes || [])" :key="n.id" class="node-pill" :class="n.status.toLowerCase()">
+                    {{ n.node_label }}
+                  </span>
+                </div>
+              </template>
+              <span class="node-brief">
+                <span class="node-dot" :class="nodeState(row)"></span>
+                {{ nodeDone(row) }}/{{ (row.nodes || []).length || 0 }}
+              </span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="190" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openNodes(row)">节点进度</el-button>
-            <el-button v-if="canManage" link type="warning" @click="openAssign(row)">派单</el-button>
+            <el-button v-if="canEdit(row)" link type="primary" @click="openEdit(row)">编辑</el-button>
+            <el-button v-if="canEdit(row)" link type="danger" @click="removeTask(row)">删除</el-button>
+            <el-button v-if="canAssign(row)" link type="warning" @click="openAssign(row)">
+              {{ canManage ? '派单' : '再分配' }}
+            </el-button>
             <el-button v-if="row.status === 'PENDING'" link type="success" @click="accept(row)">接单</el-button>
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
+    </div>
 
     <!-- 新建外勤任务 -->
     <el-dialog v-model="createVisible" title="新建外勤任务" width="620px">
@@ -122,6 +138,63 @@
       </template>
     </el-dialog>
 
+    <!-- 跨部门订单转接（2026-10-30 增量：其他部门将订单流转转接至外勤任务池） -->
+    <el-dialog v-model="transferVisible" title="跨部门订单转接 → 外勤任务池" width="620px">
+      <el-form :model="transferForm" label-width="110px">
+        <el-form-item label="客户名称" required><el-input v-model="transferForm.customer_name" placeholder="客户 / 企业名称" /></el-form-item>
+        <el-form-item label="关联单号"><el-input v-model="transferForm.order_no" placeholder="本部门订单 / 合同单号，如 HT-2026-0001" /></el-form-item>
+        <el-form-item label="客户类型">
+          <el-select v-model="transferForm.customer_type" style="width:100%">
+            <el-option label="企业" value="ENTERPRISE" />
+            <el-option label="个体工商户" value="INDIVIDUAL" />
+            <el-option label="个人" value="PERSONAL" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="业务类型">
+          <el-select v-model="transferForm.business_type" style="width:100%" @change="onBusinessTypeChange(transferForm, 'task_type')">
+            <el-option v-for="b in businessTypeOps" :key="b.value" :label="b.label" :value="b.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="任务类型"><el-input v-model="transferForm.task_type" placeholder="如：工商注册 / 异常处理 / 注销" /></el-form-item>
+        <el-form-item label="办理地点"><el-input v-model="transferForm.address" /></el-form-item>
+        <el-form-item label="要求完成时间"><el-date-picker v-model="transferForm.due_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" placeholder="可选" /></el-form-item>
+        <el-form-item label="转接说明"><el-input v-model="transferForm.remark" type="textarea" :rows="2" placeholder="订单背景、需要外勤办理的事项（选填）" /></el-form-item>
+        <el-alert type="success" :closable="false" show-icon title="转接后订单进入外勤任务池（待接收），由外勤主管派单办理，并自动通知外勤人员" />
+      </el-form>
+      <template #footer>
+        <el-button @click="transferVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitTransfer">确认转接</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 编辑外勤任务（2026-10-30 增量：录入错误后可修改） -->
+    <el-dialog v-model="editVisible" title="编辑外勤任务" width="620px">
+      <el-form :model="editForm" label-width="110px">
+        <el-form-item label="任务标题" required><el-input v-model="editForm.title" /></el-form-item>
+        <el-form-item label="客户名称" required><el-input v-model="editForm.customer_name" /></el-form-item>
+        <el-form-item label="客户类型">
+          <el-select v-model="editForm.customer_type" style="width:100%">
+            <el-option label="企业" value="ENTERPRISE" />
+            <el-option label="个体工商户" value="INDIVIDUAL" />
+            <el-option label="个人" value="PERSONAL" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="业务类型">
+          <el-select v-model="editForm.business_type" style="width:100%" @change="onBusinessTypeChange(editForm, 'task_type')">
+            <el-option v-for="b in businessTypeOps" :key="b.value" :label="b.label" :value="b.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="任务类型"><el-input v-model="editForm.task_type" /></el-form-item>
+        <el-form-item label="办理地点"><el-input v-model="editForm.address" /></el-form-item>
+        <el-form-item label="要求完成时间"><el-date-picker v-model="editForm.due_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" placeholder="可选" /></el-form-item>
+        <el-form-item label="备注"><el-input v-model="editForm.remark" type="textarea" :rows="2" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitEdit">保存修改</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 节点进度管理 -->
     <el-dialog v-model="nodeVisible" title="外勤精细化进度节点" width="760px">
       <template v-if="current">
@@ -168,21 +241,13 @@
     </el-dialog>
 
     <!-- 派单 -->
-    <el-dialog v-model="assignVisible" title="外勤主管派单" width="460px">
+    <el-dialog v-model="assignVisible" :title="canManage ? '外勤派单 / 再分配' : '再分配给其他外勤'" width="460px">
       <el-form label-width="90px">
         <el-form-item label="任务">{{ current?.order_no || current?.customer_name }}</el-form-item>
         <el-form-item label="外勤人员">
-          <el-select
-            v-model="assignUid"
-            placeholder="选择外勤人员，或输入姓名后回车手动录入"
-            style="width:100%"
-            filterable
-            allow-create
-            default-first-option
-            clearable>
-            <el-option v-for="u in users" :key="u.id" :label="u.display_name || u.username" :value="u.id" />
-          </el-select>
-          <div style="font-size:12px;color:#909399;margin-top:4px;line-height:1.5">可直接输入外勤人员姓名（系统外人员将以姓名文本留存）</div>
+          <PersonSelect v-model="assignUid" :include-free-text="true"
+            placeholder="选择外勤人员，或输入姓名新增" />
+          <div style="font-size:12px;color:#909399;margin-top:4px;line-height:1.5">列表里没有该外勤？直接输入姓名即可一键新增人员</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -195,10 +260,11 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { growthApi } from '@/api/growth'
 import { orgApi } from '@/api/index'
 import { useUserStore } from '@/store/user'
+import PersonSelect from '@/components/PersonSelect.vue'
 
 const store = useUserStore()
 const statusOps = [
@@ -225,14 +291,22 @@ const businessTypeHint = {
   GENERAL: '通用业务',
 }
 const canManage = computed(() => store.isBoss || store.isManager || store.isHR || store.isSuper)
+// 派单 / 再分配：主管可派任意单；外勤本人可把手上这单再分配给其他外勤
+const myId = computed(() => store.userInfo?.id || null)
+function canAssign(row) {
+  if (canManage.value) return true
+  return !!myId.value && row.assignee === myId.value
+}
 
 const list = ref([])
 const loading = ref(false)
-const filters = reactive({ status: '' })
+const filters = reactive({ status: null })
 const users = ref([])
 
 const createVisible = ref(false)
 const dealVisible = ref(false)
+const transferVisible = ref(false)
+const editVisible = ref(false)
 const nodeVisible = ref(false)
 const assignVisible = ref(false)
 const submitting = ref(false)
@@ -245,12 +319,31 @@ const assignUid = ref(null)
 
 const form = reactive({ order_no: '', customer_name: '', customer_type: 'ENTERPRISE', business_type: 'REGISTER', task_type: '', address: '', due_at: '' })
 const dealForm = reactive({ customer_name: '', from_order_no: '', customer_type: 'ENTERPRISE', business_type: 'REGISTER', task_type: '工商注册' })
+const transferForm = reactive({ customer_name: '', order_no: '', customer_type: 'ENTERPRISE', business_type: 'REGISTER', task_type: '工商注册', address: '', due_at: '', remark: '' })
+const editForm = reactive({ id: null, title: '', customer_name: '', customer_type: 'ENTERPRISE', business_type: 'REGISTER', task_type: '', address: '', due_at: '', remark: '' })
+
+// 编辑权限：管理层可改任意单；其他人可改自己下单/转接的单
+function canEdit(row) {
+  if (canManage.value) return true
+  const myIdV = myId.value
+  return !!myIdV && (row.creator === myIdV || row.created_by === myIdV)
+}
 
 function statusType(s) {
   return { PENDING: 'info', ACCEPTED: 'primary', IN_PROGRESS: 'warning', DONE: 'success', CLOSED: 'info' }[s] || 'info'
 }
 function statusType2(s) {
   return { PENDING: 'info', IN_PROGRESS: 'warning', DONE: 'success' }[s] || 'info'
+}
+// 节点完成度（列表压缩展示，明细见 hover 提示 / 「节点进度」弹窗）
+function nodeDone(row) {
+  return (row.nodes || []).filter(n => n.status === 'DONE').length
+}
+function nodeState(row) {
+  const nodes = row.nodes || []
+  if (!nodes.length) return 'none'
+  if (nodeDone(row) === nodes.length) return 'done'
+  return nodes.some(n => n.status === 'IN_PROGRESS') ? 'doing' : 'pending'
 }
 // 外勤单号规范展示：有值直显，为空按 id 规范化为 WD-00042（不改动后端字段）
 function formatOrderNo(row) {
@@ -305,6 +398,66 @@ async function submitDeal() {
   } finally { submitting.value = false }
 }
 
+// —— 跨部门订单转接 ——
+function openTransfer() {
+  Object.assign(transferForm, { customer_name: '', order_no: '', customer_type: 'ENTERPRISE', business_type: 'REGISTER', task_type: '工商注册', address: '', due_at: '', remark: '' })
+  transferVisible.value = true
+}
+async function submitTransfer() {
+  if (!transferForm.customer_name && !transferForm.order_no) return ElMessage.warning('请至少填写客户名称或关联单号')
+  submitting.value = true
+  try {
+    await growthApi.transferInFieldTask({ ...transferForm })
+    ElMessage.success('转接成功，订单已进入外勤任务池并通知外勤人员')
+    transferVisible.value = false
+    loadData()
+  } finally { submitting.value = false }
+}
+
+// —— 编辑外勤任务 ——
+function openEdit(row) {
+  Object.assign(editForm, {
+    id: row.id,
+    title: row.title || '',
+    customer_name: row.customer_name || '',
+    customer_type: row.customer_type || 'ENTERPRISE',
+    business_type: row.business_type || 'GENERAL',
+    task_type: row.task_type || '',
+    address: row.address || '',
+    due_at: row.due_at || '',
+    remark: row.remark || '',
+  })
+  editVisible.value = true
+}
+async function submitEdit() {
+  if (!editForm.title) return ElMessage.warning('任务标题不能为空')
+  if (!editForm.customer_name) return ElMessage.warning('请填写客户名称')
+  submitting.value = true
+  try {
+    const { id, ...payload } = editForm
+    await growthApi.updateFieldTask(id, payload)
+    ElMessage.success('已保存修改')
+    editVisible.value = false
+    loadData()
+  } finally { submitting.value = false }
+}
+
+// —— 删除外勤任务（2026-10-30 增量：软删除，仅本人/管理层可删）——
+async function removeTask(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除外勤任务「${row.title || row.customer_name || row.id}」吗？删除后任务及进度记录将不再显示，不可恢复。`,
+      '删除确认',
+      { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' }
+    )
+  } catch { return }
+  try {
+    await growthApi.deleteFieldTask(row.id)
+    ElMessage.success('已删除')
+    loadData()
+  } catch { /* 拦截器已提示 */ }
+}
+
 async function openNodes(row) {
   current.value = row
   nodeVisible.value = true
@@ -355,8 +508,8 @@ async function submitAssign() {
   }
   submitting.value = true
   try {
-    await growthApi.assignFieldTask(current.value.id, payload)
-    ElMessage.success('已派单')
+    const r = await growthApi.assignFieldTask(current.value.id, payload)
+    ElMessage.success(r?.detail || '已完成派单')
     assignVisible.value = false
     loadData()
   } finally { submitting.value = false }
@@ -374,9 +527,15 @@ onMounted(() => { loadUsers(); loadData() })
 </script>
 
 <style scoped>
-.field-tasks { padding: 4px; }
-.card-header { display: flex; justify-content: space-between; align-items: center; }
-.filter-bar { margin-bottom: 8px; }
+.ft-card { padding: 18px 18px 12px; }
+.filter-bar { margin-bottom: 10px; }
+.order-no { white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 13px; letter-spacing: -0.2px; }
+.sub-type { font-size: 11px; color: var(--text-3, #909399); margin-top: 2px; }
+.node-brief { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-2, #606266); font-variant-numeric: tabular-nums; }
+.node-dot { width: 7px; height: 7px; border-radius: 50%; background: #c0c4cc; flex: none; }
+.node-dot.done { background: #67c23a; }
+.node-dot.doing { background: #e6a23c; }
+.node-tip { display: flex; flex-wrap: wrap; gap: 4px; max-width: 240px; }
 .nodes-mini { display: flex; flex-wrap: wrap; gap: 4px; }
 .node-pill { font-size: 11px; padding: 1px 6px; border-radius: 4px; border: 1px solid #dcdfe6; }
 .node-pill.pending { background: #f4f4f5; color: #909399; }

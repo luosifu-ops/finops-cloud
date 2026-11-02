@@ -2,8 +2,9 @@ const app = getApp()
 
 Page({
   data: {
-    username: 'admin',
-    password: 'admin123',
+    // 2026-10-31：移除预填演示账号（提审红线：不得出现演示账号/弱口令），员工用真实账号登录
+    username: '',
+    password: '',
     loading: false
   },
 
@@ -40,7 +41,37 @@ Page({
     })
   },
 
+  // 2026-10-31 增量：微信一键登录真实现
+  // 已绑定用户：wx.login 拿 code → 后端换 openid → 直接登录进首页
+  // 未绑定/未配置凭证：引导先用账号密码登录（登录成功后自动静默绑定）
   onWx() {
-    wx.showToast({ title: '演示环境请用账号密码登录', icon: 'none' })
+    if (typeof wx.login !== 'function') {
+      wx.showToast({ title: '请使用账号密码登录', icon: 'none' })
+      return
+    }
+    wx.login({
+      success: res => {
+        if (!res.code) {
+          wx.showToast({ title: '微信登录失败，请用账号密码', icon: 'none' })
+          return
+        }
+        this.setData({ loading: true })
+        app.request('/accounts/auth/wx-login/', 'POST', { code: res.code })
+          .then(d => {
+            if (d && d.access) {
+              app.setAuth(d.access, d.user)
+              wx.showToast({ title: '登录成功', icon: 'success' })
+              setTimeout(() => wx.switchTab({ url: '/pages/index/index' }), 600)
+            } else if (d && d.code === 2) {
+              wx.showToast({ title: '首次使用请先用账号密码登录', icon: 'none', duration: 2500 })
+            } else {
+              wx.showToast({ title: (d && d.msg) || '微信登录暂不可用，请用账号密码', icon: 'none', duration: 2500 })
+            }
+          })
+          .catch(() => {})
+          .finally(() => this.setData({ loading: false }))
+      },
+      fail: () => wx.showToast({ title: '请使用账号密码登录', icon: 'none' })
+    })
   }
 })

@@ -10,7 +10,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from apps.accounts.models import User, Department
-from apps.common.permissions import visible_user_ids, IsLeaderOrAbove, IsHR
+from apps.common.permissions import visible_user_ids, IsLeaderOrAbove, IsHR, is_hr_scope
 from apps.common.viewsets import ScopeModelViewSet
 from apps.sales.models import (
     SalaryRecord, Contract, Lead, Customer, CallRecord, SalesTarget, CommissionRule,
@@ -353,6 +353,8 @@ class ApplyMixin:
         act = request.data.get("action")
         if act not in ("approve", "reject"):
             return fail("action 只能为 approve 或 reject")
+        if act == "reject" and not (request.data.get("remark") or "").strip():
+            return fail("驳回必须填写理由")
         remark = request.data.get("remark", "")
         now = timezone.now()
         obj.approver = request.user
@@ -362,6 +364,15 @@ class ApplyMixin:
             obj.approve_remark = remark
         obj.save()
         self.sync_approval(obj, act, remark, now)
+        from apps.common.services import log_action, notify_user
+        log_action(request, "APPROVE" if act == "approve" else "REJECT",
+                   module=getattr(self, "log_module", "") or "审批", obj=obj,
+                   detail=("通过" if act == "approve" else "驳回") + ": " + (remark or "")[:400])
+        # 全局规则5：驳回必须填写理由；审批结果站内通知申请人
+        applicant = getattr(obj, "user", None)
+        if applicant is not None and applicant.id != request.user.id:
+            notify_user(applicant, "你的审批申请已通过" if act == "approve" else "你的审批申请被驳回",
+                        ("审批通过" if act == "approve" else "审批驳回") + "。意见: " + (remark or "无"), link="/hr/approval")
         return ok(self.get_serializer(obj).data)
 
     @action(detail=False, methods=["get"], url_path="my")
@@ -486,6 +497,12 @@ class ApprovalViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        # 2026-10-29 权限专项：审批单按「申请人可见范围 + 我是否为审批人」收窄
+        # （原来任何账号都能拉全公司审批单；同时保留待我审批/我处理过的可见性）
+        user = self.request.user
+        if not is_hr_scope(user):
+            ids = visible_user_ids(user)
+            qs = qs.filter(Q(applicant_id__in=ids) | Q(steps__approver=user)).distinct()
         params = self.request.query_params
         biz_type = params.get("biz_type")
         if biz_type:
@@ -529,6 +546,8 @@ class ApprovalViewSet(viewsets.ModelViewSet):
         act = request.data.get("action")
         if act not in ("approve", "reject"):
             return fail("action 只能为 approve 或 reject")
+        if act == "reject" and not (request.data.get("remark") or "").strip():
+            return fail("驳回必须填写理由")
         remark = request.data.get("remark", "")
         now = timezone.now()
 
@@ -555,6 +574,62 @@ class ApprovalViewSet(viewsets.ModelViewSet):
             approval.finished_at = now
             approval.save(update_fields=["status", "finished_at"])
         return ok(ApprovalSerializer(approval).data, msg="已同意")
+
+    @action(detail=False, methods=["post"], url_path="bulk-handle")
+    def bulk_handle(self, request):
+        """2026-10-30 增量：批量审批（批量通过 / 批量驳回）
+
+        入参: { ids: [审批单ID...], action: "approve"|"reject", remark: "意见" }
+        逐单复用 handle 的校验与推进逻辑，单条失败不影响其他单；
+        返回 { total, success, failed, errors: [{id, detail}] }
+        """
+        ids = request.data.get("ids") or []
+        act = request.data.get("action")
+        remark = request.data.get("remark", "")
+        if not isinstance(ids, list) or not ids:
+            return fail("请提供要审批的 ids 列表")
+        if act not in ("approve", "reject"):
+            return fail("action 只能为 approve 或 reject")
+        if act == "reject" and not str(remark).strip():
+            return fail("批量驳回必须填写理由")
+
+        success, errors = 0, []
+        for approval in Approval.objects.filter(id__in=ids, status="PENDING"):
+            # 与 handle 相同的节点校验：当前节点存在且审批人是本人（或超管）
+            step = approval.steps.filter(step=approval.current_step).first()
+            if not step:
+                errors.append({"id": approval.id, "detail": "审批节点不存在"})
+                continue
+            if step.approver_id != request.user.id and not request.user.is_superuser:
+                errors.append({"id": approval.id, "detail": "无权限（当前节点审批人不是你）"})
+                continue
+            now = timezone.now()
+            if act == "reject":
+                step.status = "REJECTED"
+                step.remark = remark
+                step.handled_at = now
+                step.save()
+                approval.status = "REJECTED"
+                approval.finished_at = now
+                approval.save(update_fields=["status", "finished_at"])
+            else:
+                step.status = "APPROVED"
+                step.remark = remark
+                step.handled_at = now
+                step.save()
+                next_step = approval.steps.filter(step__gt=approval.current_step).order_by("step").first()
+                if next_step:
+                    approval.current_step = next_step.step
+                    approval.save(update_fields=["current_step"])
+                else:
+                    approval.status = "APPROVED"
+                    approval.finished_at = now
+                    approval.save(update_fields=["status", "finished_at"])
+            success += 1
+        # 非 PENDING / 不存在的 id 也计入失败，便于前端提示
+        failed = len(ids) - success
+        return ok({"total": len(ids), "success": success, "failed": failed, "errors": errors},
+                  msg=f"批量{'通过' if act == 'approve' else '驳回'}：成功 {success} 单" + (f"，失败 {failed} 单" if failed else ""))
 
     @action(detail=False, methods=["get"], url_path="todo")
     def todo(self, request):
@@ -592,6 +667,11 @@ class ApprovalStepViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        # 2026-10-29 权限专项：节点跟随审批单可见范围（原来任何账号可看全部节点）
+        user = self.request.user
+        if not is_hr_scope(user):
+            ids = visible_user_ids(user)
+            qs = qs.filter(Q(approval__applicant_id__in=ids) | Q(approver=user)).distinct()
         approval_id = self.request.query_params.get("approval")
         if approval_id:
             qs = qs.filter(approval_id=approval_id)
@@ -922,6 +1002,8 @@ class HrApproveMixin:
         act = request.data.get("action")
         if act not in ("approve", "reject"):
             return fail("action 只能为 approve 或 reject")
+        if act == "reject" and not (request.data.get("remark") or "").strip():
+            return fail("驳回必须填写理由")
         remark = request.data.get("remark", "")
         self._apply_decision(obj, act, remark, timezone.now())
         return ok(self.get_serializer(obj).data)

@@ -1,0 +1,438 @@
+<template>
+  <el-container class="layout">
+    <!-- 桌面端侧边栏 -->
+    <el-aside v-if="!isMobile" :width="collapsed ? '68px' : '232px'" class="aside">
+      <div class="logo" :class="{ mini: collapsed }">
+        <div class="logo-mark">{{ brand.logoChar }}</div>
+        <div v-if="!collapsed" class="logo-text">
+          <span class="logo-name">{{ brand.name }}</span>
+          <span class="logo-sub">财税 · 企管 · 一体化</span>
+        </div>
+      </div>
+      <el-scrollbar>
+        <SideMenu :collapsed="collapsed" />
+      </el-scrollbar>
+      <div v-if="!collapsed" class="aside-foot">
+        <span class="dot"></span>系统运行正常
+      </div>
+    </el-aside>
+
+    <!-- 移动端抽屉 -->
+    <el-drawer v-else v-model="drawer" direction="ltr" size="240px" :with-header="false" class="side-drawer">
+      <div class="logo drawer-logo">
+        <div class="logo-mark">{{ brand.logoChar }}</div>
+        <div class="logo-text">
+          <span class="logo-name">{{ brand.name }}</span>
+          <span class="logo-sub">财税 · 企管 · 一体化</span>
+        </div>
+      </div>
+      <el-scrollbar>
+        <SideMenu :collapsed="false" />
+      </el-scrollbar>
+    </el-drawer>
+
+    <el-container class="body">
+      <el-header class="header">
+        <div class="left">
+          <div class="toggle" @click="onToggle">
+            <el-icon><Expand v-if="collapsed && !isMobile" /><Fold v-else /></el-icon>
+          </div>
+          <div class="crumb">
+            <span v-if="$route.meta.group" class="crumb-group">{{ $route.meta.group }}</span>
+            <span v-if="$route.meta.group" class="crumb-sep">/</span>
+            <span class="crumb-cur">{{ $route.meta.title || '首页' }}</span>
+          </div>
+        </div>
+        <div class="right">
+          <!-- 消息中心：站内信（审批结果等）+ 经营待办聚合 -->
+          <el-popover placement="bottom-end" :width="360" trigger="click" popper-class="msg-pop">
+            <template #reference>
+              <div class="icon-btn">
+                <el-badge :value="msgCount" :hidden="!msgCount" :max="99">
+                  <el-icon :size="18"><Bell /></el-icon>
+                </el-badge>
+              </div>
+            </template>
+            <div class="msg-head">
+              <span>消息中心</span>
+              <el-button v-if="inboxUnread" link type="primary" size="small" @click="markAllRead">全部已读</el-button>
+            </div>
+            <el-tabs v-model="msgTab" stretch style="margin-top:4px">
+              <el-tab-pane :label="`站内信${inboxUnread ? ` (${inboxUnread})` : ''}`" name="inbox">
+                <div class="msg-list">
+                  <div v-if="!inboxList.length" class="msg-empty">暂无站内消息</div>
+                  <div class="msg-item" v-for="m in inboxList" :key="m.id" :class="{ unread: !m.is_read }"
+                    @click="openInbox(m)">
+                    <span class="msg-icon">{{ inboxIcon(m.category) }}</span>
+                    <div class="msg-body">
+                      <div class="msg-label">
+                        <span v-if="!m.is_read" class="dot-new"></span>{{ m.title }}
+                      </div>
+                      <div class="msg-sub msg-clip">{{ m.body }}</div>
+                      <div class="msg-time">{{ m.created_at }}</div>
+                    </div>
+                  </div>
+                </div>
+              </el-tab-pane>
+              <el-tab-pane label="经营待办" name="todo">
+                <div class="msg-list">
+                  <div class="msg-item" v-for="m in msgItems" :key="m.key" :class="'lv-'+m.level" @click="go(m.path)">
+                    <span class="msg-icon">{{ m.icon }}</span>
+                    <div class="msg-body">
+                      <div class="msg-label">{{ m.label }}</div>
+                      <div class="msg-sub">{{ m.count ? '共 ' + m.count + ' 项待处理' : '暂无' }}</div>
+                    </div>
+                    <span class="msg-count" v-if="m.count">{{ m.count }}</span>
+                  </div>
+                </div>
+              </el-tab-pane>
+            </el-tabs>
+          </el-popover>
+
+          <div class="v-divider"></div>
+
+          <el-dropdown @command="handleCommand">
+            <span class="user">
+              <el-avatar :size="32" class="avatar">{{ userName.charAt(0) }}</el-avatar>
+              <span class="u-meta">
+                <span class="uname">{{ userName }}</span>
+                <span class="urole">{{ roleName }}</span>
+              </span>
+              <el-icon class="caret"><ArrowDown /></el-icon>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="profile">个人中心</el-dropdown-item>
+                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+      </el-header>
+
+      <el-main class="main">
+        <router-view :key="$route.fullPath" />
+      </el-main>
+
+      <!-- 页脚：备案号（备案通过后由后端 BRAND/ICP_BEIAN/POLICE_BEIAN 注入，留空不显示） -->
+      <footer class="site-footer" v-if="brand.icpBeian || brand.policeBeian">
+        <template v-if="brand.icpBeian">
+          <a class="beian-link" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">{{ brand.icpBeian }}</a>
+        </template>
+        <template v-if="brand.policeBeian">
+          <span class="beian-sep">·</span>
+          <a class="beian-link" :href="policeBeianUrl(brand.policeBeian)" target="_blank" rel="noreferrer">{{ brand.policeBeian }}</a>
+        </template>
+      </footer>
+    </el-container>
+
+    <!-- AI 经营助手浮窗 -->
+    <AiAssistant />
+  </el-container>
+</template>
+
+<script setup>
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessageBox } from 'element-plus'
+import { Bell, Expand, Fold, ArrowDown } from '@element-plus/icons-vue'
+import { useUserStore } from '@/store/user'
+import { brand, policeBeianUrl } from '@/store/brand'
+import { dashApi, salesApi, accApi, commonApi } from '@/api'
+import SideMenu from '@/components/SideMenu.vue'
+import AiAssistant from '@/components/AiAssistant.vue'
+
+const router = useRouter()
+const store = useUserStore()
+const collapsed = ref(false)
+const drawer = ref(false)
+const isMobile = ref(false)
+
+const userName = computed(() => store.name)
+const roleName = computed(() => store.roleName)
+
+const msgItems = ref([
+  { key: 'approval', level: 'danger', icon: '✅', label: '待我审批', count: 0, path: '/hr/approval' },
+  { key: 'overdue', level: 'warning', icon: '⏰', label: '逾期做账', count: 0, path: '/accounting/tasks' },
+  { key: 'expireSales', level: 'warning', icon: '📝', label: '合同将到期', count: 0, path: '/sales/customers' },
+  { key: 'expireAcc', level: 'warning', icon: '📒', label: '代账将到期', count: 0, path: '/accounting/clients' }
+])
+const msgCount = computed(() => msgItems.value.reduce((s, m) => s + (m.count || 0), 0) + inboxUnread.value)
+
+// —— 站内信（审批结果通知等）——
+const msgTab = ref('inbox')
+const inboxList = ref([])
+const inboxUnread = ref(0)
+const inboxIcon = (c) => ({ APPROVAL: '📋', SYSTEM: '⚙️', WARN: '⚠️' }[c] || '📨')
+const loadInbox = async () => {
+  try {
+    const [list, cnt] = await Promise.all([
+      commonApi.inbox({ page_size: 20 }),
+      commonApi.inboxUnread()
+    ])
+    const d = list?.data || list || {}
+    inboxList.value = d.results || d || []
+    if (!Array.isArray(inboxList.value)) inboxList.value = []
+    inboxUnread.value = cnt?.data?.count ?? cnt?.count ?? 0
+  } catch (e) { /* 静默 */ }
+}
+const openInbox = async (m) => {
+  if (!m.is_read) {
+    try { await commonApi.inboxMarkRead(m.id) } catch (e) {}
+    m.is_read = true
+    inboxUnread.value = Math.max(0, inboxUnread.value - 1)
+  }
+  if (m.link) router.push(m.link)
+}
+const markAllRead = async () => {
+  try {
+    await commonApi.inboxMarkAll()
+    inboxList.value.forEach((m) => (m.is_read = true))
+    inboxUnread.value = 0
+  } catch (e) {}
+}
+
+const asList = (r) => {
+  if (!r) return []
+  if (Array.isArray(r)) return r
+  if (Array.isArray(r.results)) return r.results
+  if (r.data) {
+    if (Array.isArray(r.data)) return r.data
+    if (Array.isArray(r.data.results)) return r.data.results
+  }
+  return []
+}
+
+const mq = window.matchMedia('(max-width: 992px)')
+const onResize = () => { isMobile.value = mq.matches }
+const onToggle = () => { isMobile.value ? (drawer.value = true) : (collapsed.value = !collapsed.value) }
+
+const go = (path) => router.push(path)
+let inboxTimer = null
+
+const handleCommand = (cmd) => {
+  if (cmd === 'logout') {
+    ElMessageBox.confirm('确认退出登录？', '提示', { type: 'warning' }).then(() => {
+      store.logout()
+      router.push('/login')
+    }).catch(() => {})
+  } else if (cmd === 'profile') {
+    router.push('/system/profile')
+  }
+}
+
+const loadMessages = async () => {
+  try {
+    const todo = await dashApi.todo()
+    msgItems.value[0].count = todo.pending_approvals || 0
+    msgItems.value[1].count = todo.overdue_accounting_tasks || 0
+  } catch (e) {}
+  try {
+    const sc = await salesApi.expiringCustomers({ days: 30 })
+    msgItems.value[2].count = asList(sc).length
+    const ac = await accApi.expiringClients({ days: 60 })
+    msgItems.value[3].count = asList(ac).length
+  } catch (e) {}
+}
+
+onMounted(() => {
+  onResize()
+  mq.addEventListener('change', onResize)
+  loadMessages()
+  loadInbox()
+  inboxTimer = setInterval(loadInbox, 60000)
+})
+onBeforeUnmount(() => { mq.removeEventListener('change', onResize); if (inboxTimer) clearInterval(inboxTimer) })
+</script>
+
+<style scoped>
+.layout { height: 100vh; }
+
+/* ---------------- 侧边栏：深墨蓝 ---------------- */
+.aside {
+  background: linear-gradient(180deg, #101f33 0%, #0f1c2e 55%, #0c1725 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  transition: width 0.22s ease;
+  display: flex; flex-direction: column;
+  position: relative;
+}
+.aside::after {
+  content: ''; position: absolute; inset: 0 0 0 auto; width: 1px;
+  background: linear-gradient(180deg, rgba(91, 140, 255, 0.35), transparent 40%, rgba(201, 169, 106, 0.18));
+  pointer-events: none;
+}
+.logo {
+  height: 64px; display: flex; align-items: center; gap: 11px;
+  padding: 0 18px; flex-shrink: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.logo.mini { justify-content: center; padding: 0; }
+.logo-mark {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; color: #fff;
+  background: linear-gradient(135deg, #3f78ff 0%, #1b4ce0 100%);
+  box-shadow: 0 4px 14px -4px rgba(47, 107, 255, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.logo-text { display: flex; flex-direction: column; min-width: 0; }
+.logo-name {
+  font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -0.2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.logo-sub { font-size: 10.5px; color: rgba(201, 169, 106, 0.85); letter-spacing: 1.2px; margin-top: 2px; }
+.drawer-logo { border-bottom: 1px solid rgba(255, 255, 255, 0.07); }
+
+.aside-foot {
+  flex-shrink: 0; padding: 12px 20px 14px; font-size: 11.5px;
+  color: rgba(233, 239, 250, 0.4); display: flex; align-items: center; gap: 7px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.aside-foot .dot {
+  width: 6px; height: 6px; border-radius: 50%; background: #12b76a;
+  box-shadow: 0 0 0 3px rgba(18, 183, 106, 0.18);
+}
+
+/* 侧栏内菜单：深色主题 */
+.aside :deep(.el-menu),
+.side-drawer :deep(.el-menu) {
+  --el-menu-bg-color: transparent;
+  --el-menu-text-color: rgba(233, 239, 250, 0.76);
+  --el-menu-hover-bg-color: rgba(255, 255, 255, 0.07);
+  --el-menu-active-color: #ffffff;
+  --el-menu-item-height: 42px;
+  --el-menu-sub-item-height: 38px;
+  border-right: none;
+  padding: 10px 10px 24px;
+  background: transparent;
+}
+.aside :deep(.el-menu-item),
+.aside :deep(.el-sub-menu__title),
+.side-drawer :deep(.el-menu-item),
+.side-drawer :deep(.el-sub-menu__title) {
+  position: relative;
+  border-radius: 9px; margin: 2px 0; height: 42px; line-height: 42px;
+  font-size: 13.5px; font-weight: 500; letter-spacing: 0.1px;
+}
+.side-drawer :deep(.el-menu-item),
+.side-drawer :deep(.el-sub-menu__title) { height: 40px; line-height: 40px; }
+.aside :deep(.el-menu-item:hover),
+.aside :deep(.el-sub-menu__title:hover),
+.side-drawer :deep(.el-menu-item:hover),
+.side-drawer :deep(.el-sub-menu__title:hover) {
+  background: rgba(255, 255, 255, 0.07); color: #fff;
+}
+.aside :deep(.el-menu-item.is-active),
+.side-drawer :deep(.el-menu-item.is-active) {
+  background: linear-gradient(90deg, rgba(91, 140, 255, 0.24), rgba(91, 140, 255, 0.10));
+  color: #fff; font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(91, 140, 255, 0.24);
+}
+.aside :deep(.el-menu-item.is-active)::before,
+.side-drawer :deep(.el-menu-item.is-active)::before {
+  content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 17px; border-radius: 0 3px 3px 0;
+  background: linear-gradient(180deg, #7ea6ff, #2f6bff);
+}
+.aside :deep(.el-sub-menu.is-active > .el-sub-menu__title),
+.side-drawer :deep(.el-sub-menu.is-active > .el-sub-menu__title) { color: #fff; }
+.aside :deep(.el-menu--collapse .el-menu-item),
+.aside :deep(.el-menu--collapse .el-sub-menu__title) { justify-content: center; padding: 0 !important; }
+.aside :deep(.el-icon) { font-size: 17px; }
+.aside :deep(.el-scrollbar) { flex: 1; min-height: 0; }
+
+/* ---------------- 顶栏 ---------------- */
+.body { min-width: 0; }
+.header {
+  height: 60px; flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: saturate(180%) blur(14px);
+  border-bottom: 1px solid var(--border-soft);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 22px;
+  position: relative; z-index: 10;
+}
+.header .left { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.toggle {
+  width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--text-sub); transition: all .16s ease; flex-shrink: 0; font-size: 18px;
+}
+.toggle:hover { background: var(--primary-50); color: var(--primary); }
+
+.crumb { display: flex; align-items: center; gap: 8px; font-size: 13.5px; min-width: 0; }
+.crumb-group { color: var(--text-weak); font-weight: 500; white-space: nowrap; }
+.crumb-sep { color: #d4dae6; }
+.crumb-cur { color: var(--text-main); font-weight: 650; letter-spacing: -0.1px; white-space: nowrap; }
+
+.header .right { display: flex; align-items: center; gap: 12px; }
+.icon-btn {
+  width: 34px; height: 34px; border-radius: 10px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-sub); transition: all .16s ease;
+}
+.icon-btn:hover { background: var(--primary-50); color: var(--primary); }
+.v-divider { width: 1px; height: 20px; background: var(--border); }
+
+.user { display: flex; align-items: center; gap: 9px; cursor: pointer; outline: none; padding: 4px 8px 4px 4px; border-radius: 12px; transition: background .16s; }
+.user:hover { background: var(--surface-3); }
+.avatar {
+  background: linear-gradient(135deg, #5b8cff, #1b4ce0) !important;
+  color: #fff !important; font-weight: 650; font-size: 13px;
+  box-shadow: 0 3px 10px -3px rgba(47, 107, 255, 0.6);
+}
+.u-meta { display: flex; flex-direction: column; line-height: 1.25; }
+.uname { font-size: 13.5px; font-weight: 600; color: var(--text-main); }
+.urole { font-size: 11px; color: var(--text-weak); margin-top: 1px; }
+.caret { font-size: 12px; color: var(--text-weak); }
+
+.main { padding: 0; background: var(--page-bg); overflow-y: auto; }
+.todo-badge { margin-right: 6px; }
+
+.site-footer {
+  background: transparent; border-top: 1px solid var(--border-soft);
+  padding: 12px 16px; text-align: center; font-size: 12px; color: var(--text-weak);
+  display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.beian-link { color: var(--text-weak); text-decoration: none; transition: color .16s; }
+.beian-link:hover { color: var(--primary); }
+.beian-sep { color: var(--border); }
+</style>
+
+<style>
+/* 移动端抽屉深色底 */
+.side-drawer .el-drawer__body { padding: 0; background: linear-gradient(180deg, #101f33, #0c1725); }
+
+/* 消息中心弹层 */
+.msg-pop .msg-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 14px; font-weight: 700; padding: 4px 4px 10px; border-bottom: 1px solid var(--border-soft);
+}
+.msg-pop .msg-head small { font-size: 11px; color: var(--text-weak); font-weight: 400; }
+.msg-pop .msg-list { max-height: 330px; overflow-y: auto; margin-top: 6px; }
+.msg-empty { text-align: center; color: var(--text-weak); font-size: 13px; padding: 24px 0; }
+.msg-item.unread { background: #f5f8ff; }
+.msg-item .dot-new {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--danger); margin-right: 6px; vertical-align: middle;
+}
+.msg-item .msg-time { font-size: 11px; color: var(--text-weak); margin-top: 2px; }
+.msg-clip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+.msg-pop .msg-item {
+  display: flex; align-items: center; gap: 11px; padding: 10px 8px; cursor: pointer;
+  border-radius: 10px; transition: background .15s;
+}
+.msg-pop .msg-item:hover { background: var(--primary-50); }
+.msg-pop .msg-icon {
+  font-size: 16px; width: 32px; height: 32px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-3); border-radius: 9px;
+}
+.msg-pop .msg-body { flex: 1; min-width: 0; }
+.msg-pop .msg-label { font-size: 13px; font-weight: 600; color: var(--text-main); }
+.msg-pop .msg-sub { font-size: 11.5px; color: var(--text-weak); margin-top: 2px; }
+.msg-pop .msg-count {
+  background: var(--danger); color: #fff; font-size: 11px; font-weight: 600;
+  min-width: 20px; height: 20px; border-radius: 10px; padding: 0 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.msg-pop .lv-warning .msg-count { background: var(--warning); }
+</style>

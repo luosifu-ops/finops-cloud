@@ -2,7 +2,7 @@
 from rest_framework import serializers
 from .models import (
     Lead, Customer, Contract, CallRecord, FollowUp, SalesTarget, CommissionRule, SalaryRecord,
-    Streamer,
+    Streamer, CustomerTag,
 )
 
 
@@ -31,11 +31,17 @@ class LeadSerializer(serializers.ModelSerializer):
 
 
 class CustomerSerializer(serializers.ModelSerializer):
-    """客户档案"""
+    """客户档案（2026-10-29 增加标签体系：tags 写入标签 id 列表，tags_info 读出名称+配色）"""
     owner_name = serializers.CharField(source="owner.display_name", read_only=True)
     accountant_name = serializers.CharField(source="accountant.display_name", read_only=True)
     status_name = serializers.CharField(source="get_status_display", read_only=True)
     customer_type_name = serializers.CharField(source="get_customer_type_display", read_only=True)
+    tags_info = serializers.SerializerMethodField()
+    tags = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=CustomerTag.objects.filter(is_deleted=False), required=False)
+
+    def get_tags_info(self, obj):
+        return [{"id": t.id, "name": t.name, "color": t.color} for t in obj.tags.all()]
 
     class Meta:
         model = Customer
@@ -44,7 +50,7 @@ class CustomerSerializer(serializers.ModelSerializer):
             "contact", "phone", "wechat", "credit_code", "industry", "region",
             "address", "source", "owner", "owner_name", "accountant", "accountant_name",
             "level", "status", "status_name", "signed_at", "expire_at", "remark",
-            "created_at", "updated_at",
+            "tags", "tags_info", "created_at", "updated_at",
         ]
         read_only_fields = ["created_at", "updated_at"]
 
@@ -204,4 +210,18 @@ class StreamerSerializer(serializers.ModelSerializer):
             "status", "status_name", "entry_date", "fans_count", "live_count",
             "gmv", "commission_rate", "remark", "created_at", "updated_at",
         ]
+        read_only_fields = ["created_at", "updated_at"]
+
+
+class CustomerTagSerializer(serializers.ModelSerializer):
+    """客户标签（2026-10-29 客户档案标签体系）"""
+    customer_count = serializers.SerializerMethodField()
+
+    def get_customer_count(self, obj):
+        return obj.customers.filter(is_deleted=False).count()
+
+    class Meta:
+        model = CustomerTag
+        fields = ["id", "name", "color", "sort", "is_active", "remark", "customer_count",
+                  "created_at", "updated_at"]
         read_only_fields = ["created_at", "updated_at"]

@@ -100,9 +100,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="申报人">
-          <el-select v-model="form.operator" clearable filterable placeholder="选择申报人" style="width: 100%">
-            <el-option v-for="u in users" :key="u.id" :label="u.display_name" :value="u.id" />
-          </el-select>
+          <PersonSelect v-model="form.operator" placeholder="选择申报人" />
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="选填" />
@@ -120,6 +118,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import http from '@/api'
+import PersonSelect from '@/components/PersonSelect.vue'
 
 const loading = ref(false)
 const saving = ref(false)

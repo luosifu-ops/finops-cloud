@@ -66,9 +66,7 @@
         <el-form-item label="客户名称"><el-input v-model="form.customer_name" /></el-form-item>
         <el-form-item label="业务类型"><el-input v-model="form.project_type" placeholder="如：高新认定 / 资质办理 / 税务筹划" /></el-form-item>
         <el-form-item label="负责人">
-          <el-select v-model="form.owner" placeholder="选择负责人" clearable style="width:100%">
-            <el-option v-for="u in users" :key="u.id" :label="u.display_name || u.username" :value="u.id" />
-          </el-select>
+          <PersonSelect v-model="form.owner" placeholder="选择负责人" />
         </el-form-item>
         <el-form-item label="合同金额(元)"><el-input-number v-model="form.amount" :min="0" :precision="2" style="width:200px" /></el-form-item>
         <el-form-item label="成本(元)"><el-input-number v-model="form.cost" :min="0" :precision="2" style="width:200px" /></el-form-item>
@@ -113,6 +111,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { growthApi } from '@/api/growth'
 import { orgApi } from '@/api/index'
+import PersonSelect from '@/components/PersonSelect.vue'
 
 const statusOps = [
   { label: '待启动', value: 'DRAFT' }, { label: '进行中', value: 'DOING' },

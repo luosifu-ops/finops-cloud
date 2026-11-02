@@ -13,6 +13,9 @@ router.register("content-posts", viewsets.ContentPostViewSet, basename="content-
 router.register("content-stats", viewsets.ContentStatViewSet, basename="content-stat")
 router.register("budgets", viewsets.ChannelBudgetViewSet, basename="channel-budget")
 router.register("daily-reports", viewsets.OpsDailyReportViewSet, basename="ops-daily-report")
+router.register("anchor-daily-reports", viewsets.AnchorDailyReportViewSet, basename="anchor-daily-report")
+router.register("lead-ledgers", viewsets.LeadLedgerViewSet, basename="lead-ledger")
+router.register("anchor-ad-stats", viewsets.AnchorAdStatViewSet, basename="anchor-ad-stat")
 
 urlpatterns = [
     path("", include(router.urls)),

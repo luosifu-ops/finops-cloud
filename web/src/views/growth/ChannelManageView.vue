@@ -8,11 +8,18 @@
             <div class="card-header">
               <span>渠道字典 · 已启用与预留扩展位</span>
               <div>
-                <el-button v-if="isAdmin" :disabled="!hasChanges" type="primary" @click="batchToggle" :loading="batchLoading">
-                  一键{{ pendingToggleCount > 0 ? `开启 ${pendingToggleCount} 个` : '保存' }}
+                <el-button v-if="isAdmin && pendingReserveCount > 0" type="primary" @click="batchToggle" :loading="batchLoading">
+                  一键开启预留位 {{ pendingReserveCount }} 个
                 </el-button>
                 <el-button @click="loadChannels">刷新</el-button>
               </div>
+            </div>
+            <!-- 数据自动核算：渠道启用情况实时统计 -->
+            <div class="auto-stats">
+              <el-tag size="small" type="info">自动核算</el-tag>
+              <span class="stat-item">已启用 <b>{{ enabledCount }}</b> 个</span>
+              <span class="stat-item">已停用 <b>{{ disabledCount }}</b> 个</span>
+              <span class="stat-item">预留位 <b>{{ reservedCount }}</b> 个</span>
             </div>
           </template>
 
@@ -24,7 +31,7 @@
                 <el-switch
                   v-if="isAdmin && !row.is_reserved"
                   v-model="row.is_enabled"
-                  @change="markChange(row)"
+                  @change="quickToggle(row)"
                   active-text="启用"
                   inactive-text="停用" />
                 <el-tag v-else-if="row.is_reserved" type="warning" size="small">预留位</el-tag>
@@ -145,8 +152,12 @@ const bindings = ref([])
 const loading = ref(false)
 const loadingBinding = ref(false)
 const batchLoading = ref(false)
-const hasChanges = ref(false)
-const pendingToggleCount = ref(0)
+
+// ---------- 数据自动核算（实时统计） ----------
+const enabledCount = computed(() => channels.value.filter(c => c.is_enabled && !c.is_reserved).length)
+const disabledCount = computed(() => channels.value.filter(c => !c.is_enabled && !c.is_reserved).length)
+const reservedCount = computed(() => channels.value.filter(c => c.is_reserved).length)
+const pendingReserveCount = computed(() => channels.value.filter(c => c.is_reserved && !c.is_enabled).length)
 
 const bindVisible = ref(false)
 const bindForm = reactive({ user: null, channel: null, priority: 5 })
@@ -182,18 +193,22 @@ async function loadCloserChannels() {
   }
 }
 
-function markChange(row) {
-  hasChanges.value = true
-  pendingToggleCount.value = channels.value.filter(c => !c.is_enabled && !c.is_reserved).length === 0
-    ? channels.value.filter(c => c.is_reserved && c.is_enabled).length
-    : 0
+// ---------- 开关即时保存（拨动即生效，不再依赖批量按钮） ----------
+async function quickToggle(row) {
+  try {
+    const res = await growthApi.toggleChannel(row.id)
+    row.is_enabled = !!res.is_enabled
+    ElMessage.success(`【${row.name}】已${row.is_enabled ? '启用' : '停用'}`)
+  } catch (e) {
+    row.is_enabled = !row.is_enabled   // 失败回滚 UI
+  }
 }
 
+// ---------- 批量：一键开启全部预留位 ----------
 async function batchToggle() {
-  if (!hasChanges.value) return
-  const targets = channels.value.filter(c => c.is_reserved && c.is_enabled)
+  const targets = channels.value.filter(c => c.is_reserved && !c.is_enabled)
   if (!targets.length) {
-    ElMessage.info('当前没有需要开启的预留平台')
+    ElMessage.info('当前没有待开启的预留平台')
     return
   }
   try {
@@ -205,7 +220,6 @@ async function batchToggle() {
       await growthApi.toggleChannel(t.id)
     }
     ElMessage.success('已开启，可前往线索工作台使用')
-    hasChanges.value = false
     loadChannels()
   } catch (e) {} finally {
     batchLoading.value = false
@@ -283,4 +297,10 @@ onMounted(() => {
 .growth-page { padding: 4px; }
 .main-card { margin-top: 4px; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
+.auto-stats {
+  display: flex; align-items: center; gap: 16px;
+  margin-top: 10px; padding: 8px 12px;
+  background: #f5f7fa; border-radius: 8px; font-size: 13px; color: #606266;
+}
+.auto-stats .stat-item b { color: #303133; }
 </style>

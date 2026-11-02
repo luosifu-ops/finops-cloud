@@ -150,10 +150,10 @@ const perfItems = computed(() => perf.items || [])
 const companyCards = computed(() => {
   const t = perf.total || {}
   return [
-    { label: '本月业绩', value: '¥' + fmt(t.amount), sub: `订单 ${t.order_count || 0} 单`, color: '#d93026' },
+    { label: '本月业绩', value: '¥' + fmt(t.amount), sub: `订单 ${t.order_count || 0} 单`, color: '#c3372c' },
     { label: '业绩目标', value: '¥' + fmt(t.target), sub: '公司月度目标', color: '#1f2329' },
-    { label: '目标完成率', value: (t.rate || 0) + '%', sub: t.rate >= 100 ? '已达标 🎉' : '继续努力', color: t.rate >= 100 ? '#0f9960' : '#d9822b' },
-    { label: '已回款', value: '¥' + fmt(t.received), sub: '实收金额', color: '#0f9960' }
+    { label: '目标完成率', value: (t.rate || 0) + '%', sub: t.rate >= 100 ? '已达标 🎉' : '继续努力', color: t.rate >= 100 ? '#12865a' : '#c07a12' },
+    { label: '已回款', value: '¥' + fmt(t.received), sub: '实收金额', color: '#12865a' }
   ]
 })
 

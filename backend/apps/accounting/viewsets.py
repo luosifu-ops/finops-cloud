@@ -8,19 +8,19 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.accounts.models import User
-from apps.common.permissions import visible_user_ids, IsManagerOrAbove
-from apps.common.viewsets import ScopeModelViewSet
+from apps.common.permissions import visible_user_ids, IsManagerOrAbove, is_boss
+from apps.common.viewsets import ScopeModelViewSet, BizScopeModelViewSet
 from .models import (
     TaxType, AccountingClient, MonthlyTask, TaskStep, Voucher, Invoice,
     BankStatement, TaxDeclaration, SocialInsurance, AnnualReport,
-    BusinessItem, ClientDocument, HandoverRecord,
+    BusinessItem, ClientDocument, HandoverRecord, BookSet,
 )
 from .serializers import (
     TaxTypeSerializer, AccountingClientSerializer, MonthlyTaskSerializer,
     TaskStepSerializer, VoucherSerializer, InvoiceSerializer,
     BankStatementSerializer, TaxDeclarationSerializer, SocialInsuranceSerializer,
     AnnualReportSerializer, BusinessItemSerializer, ClientDocumentSerializer,
-    HandoverRecordSerializer,
+    HandoverRecordSerializer, BookSetSerializer,
 )
 
 
@@ -61,8 +61,10 @@ def to_rate(numerator, denominator):
 
 
 def is_big_boss(user):
-    """老板/人事/超管：看全部数据"""
-    return user.is_superuser or user.role in ("BOSS", "HR")
+    """老板/超管：看全部经营数据。
+    2026-10-29 权限专项：HR 不再自动获得全公司业务数据（客户/代账/凭证/发票等），
+    人事相关视图仍走 visible_user_ids 的 HR 全量口径。"""
+    return is_boss(user)
 
 
 def period_deadline(period):
@@ -180,11 +182,15 @@ class AccountingClientViewSet(viewsets.ModelViewSet):
 
 
 # ---------------- 月度做账任务 ----------------
-class MonthlyTaskViewSet(ScopeModelViewSet):
+class MonthlyTaskViewSet(BizScopeModelViewSet):
     """月度做账任务"""
     queryset = MonthlyTask.objects.filter(is_deleted=False)
     serializer_class = MonthlyTaskSerializer
     owner_field = "accountant"
+    # 任务归属：主会计 / 客户主会计 / 客户助理 三者之一即可见
+    scope_fields = ("accountant", "client__accountant", "client__assistant")
+    log_module = "月度做账任务"
+    scope_by_department = True
     ordering_fields = ["period", "deadline", "status"]
     search_fields = ["client__customer__name", "period"]
 
@@ -332,11 +338,15 @@ class MonthlyTaskViewSet(ScopeModelViewSet):
 
 
 # ---------------- 做账节点 ----------------
-class TaskStepViewSet(viewsets.ModelViewSet):
+class TaskStepViewSet(BizScopeModelViewSet):
     """做账节点（只读，可改状态）"""
     queryset = TaskStep.objects.filter(is_deleted=False)
     serializer_class = TaskStepSerializer
     http_method_names = ["get", "patch", "head", "options"]
+    # 节点跟随任务归属：操作人 / 任务会计 / 客户会计
+    scope_fields = ("operator", "task__accountant", "task__client__accountant")
+    scope_by_department = True
+    log_module = "做账节点"
     ordering_fields = ["id"]
 
     def get_queryset(self):
@@ -349,12 +359,16 @@ class TaskStepViewSet(viewsets.ModelViewSet):
 
 
 # ---------------- 记账凭证 ----------------
-class VoucherViewSet(viewsets.ModelViewSet):
+class VoucherViewSet(BizScopeModelViewSet):
     """记账凭证"""
     queryset = Voucher.objects.filter(is_deleted=False)
     serializer_class = VoucherSerializer
     search_fields = ["voucher_no", "summary", "subject"]
     ordering_fields = ["voucher_no", "date"]
+    # 凭证跟随归属：制单 / 审核 / 任务会计
+    scope_fields = ("made_by", "reviewed_by", "task__accountant")
+    scope_by_department = True
+    log_module = "记账凭证"
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -390,12 +404,16 @@ class VoucherViewSet(viewsets.ModelViewSet):
 
 
 # ---------------- 发票 ----------------
-class InvoiceViewSet(viewsets.ModelViewSet):
+class InvoiceViewSet(BizScopeModelViewSet):
     """发票管理"""
     queryset = Invoice.objects.filter(is_deleted=False)
     serializer_class = InvoiceSerializer
     search_fields = ["number", "code", "seller", "buyer"]
     ordering_fields = ["invoice_date", "total"]
+    # 发票跟随客户归属：客户会计 / 客户助理
+    scope_fields = ("client__accountant", "client__assistant", "task__accountant")
+    scope_by_department = True
+    log_module = "发票管理"
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -442,12 +460,16 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
 
 # ---------------- 银行流水 ----------------
-class BankStatementViewSet(viewsets.ModelViewSet):
+class BankStatementViewSet(BizScopeModelViewSet):
     """银行流水"""
     queryset = BankStatement.objects.filter(is_deleted=False)
     serializer_class = BankStatementSerializer
     search_fields = ["summary", "counterparty"]
     ordering_fields = ["trans_date", "income", "expense"]
+    # 流水跟随客户归属：客户会计 / 客户助理
+    scope_fields = ("client__accountant", "client__assistant")
+    scope_by_department = True
+    log_module = "银行流水"
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -676,3 +698,54 @@ class HandoverRecordViewSet(viewsets.ModelViewSet):
             AccountingClient.objects.filter(id=record.client_id).update(
                 accountant_id=record.to_user_id)
         return Response({"code": 0, "msg": "ok", "data": HandoverRecordSerializer(record).data})
+
+
+class BookSetViewSet(viewsets.ModelViewSet):
+    """账套 CRUD（2026-10-29 Boss 专项：云账房账套增删改查）
+
+    账套属于公司共享数据（不按个人归属隔离），登录即可查看，
+    写操作由前端权限墙 + 操作日志留痕约束。
+    """
+    queryset = BookSet.objects.filter(is_deleted=False)
+    serializer_class = BookSetSerializer
+    log_module = "账套管理"
+    search_fields = ["name", "yz_account_no"]
+    ordering_fields = ["created_at", "period", "voucher_count"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return apply_filters(qs, self.request, {
+            "client": "client_id",
+            "period": "period",
+            "status": "status",
+            "taxpayer_type": "taxpayer_type",
+        })
+
+    def perform_create(self, serializer):
+        inst = serializer.save(created_by=self.request.user)
+        from apps.common.services import log_action
+        log_action(self.request, "CREATE", module="账套管理", obj=inst,
+                   detail=f"新建账套 {inst.name}（{inst.period}）")
+
+    def perform_update(self, serializer):
+        inst = serializer.save()
+        from apps.common.services import log_action
+        log_action(self.request, "UPDATE", module="账套管理", obj=inst,
+                   detail="修改字段: " + ",".join(serializer.validated_data.keys()))
+
+    def perform_destroy(self, instance):
+        from apps.common.services import log_action
+        log_action(self.request, "DELETE", module="账套管理", obj=instance)
+        instance.soft_delete()
+
+    @action(detail=False, methods=["get"], url_path="summary")
+    def summary(self, request):
+        """账套总览：数量、凭证合计、按状态分布"""
+        qs = self.get_queryset()
+        return Response({"code": 0, "data": {
+            "total": qs.count(),
+            "vouchers": sum(qs.values_list("voucher_count", flat=True)),
+            "active": qs.filter(status="ACTIVE").count(),
+            "paused": qs.filter(status="PAUSED").count(),
+            "periods": list(qs.values_list("period", flat=True).distinct().order_by("-period")[:12]),
+        }})

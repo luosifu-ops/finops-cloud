@@ -85,7 +85,7 @@ onMounted(load)
   font-weight: 700;
   margin-bottom: 12px;
   padding-left: 10px;
-  border-left: 4px solid var(--primary, #2f6fed);
+  border-left: 4px solid var(--primary, #2a4fd4);
   color: #1f2329;
 }
 .section-body {

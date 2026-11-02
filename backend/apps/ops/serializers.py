@@ -65,7 +65,7 @@ class AdDailyStatSerializer(serializers.ModelSerializer):
         fields = ["id", "platform", "platform_name", "account", "account_name",
                   "campaign", "campaign_name", "date", "cost", "impression", "click",
                   "click_rate", "avg_click_cost", "lead_count", "valid_lead",
-                  "wechat_added", "visit_count", "deal_count", "deal_amount",
+                  "phone_added", "wechat_added", "visit_count", "deal_count", "deal_amount",
                   "cpl", "cac", "roi", "lead_valid_rate",
                   "operator", "operator_name", "remark", "created_at"]
         read_only_fields = ["created_at"]
@@ -129,4 +129,62 @@ class OpsDailyReportSerializer(serializers.ModelSerializer):
         fields = ["id", "user", "user_name", "date", "total_cost", "total_lead",
                   "total_wechat", "total_deal", "highlights", "problems",
                   "tomorrow_plan", "attachments", "created_at", "updated_at"]
+        read_only_fields = ["created_at", "updated_at"]
+
+
+# ============== 主播板块：获客日报 / 留资台账 / 直播投流 ==============
+from .models import AnchorDailyReport, LeadLedger, AnchorAdStat
+
+
+class AnchorDailyReportSerializer(serializers.ModelSerializer):
+    """主播获客日报"""
+    channel_type_name = serializers.CharField(source="get_channel_type_display", read_only=True)
+    operator_name = serializers.CharField(source="operator.display_name", read_only=True)
+    enter_rate = serializers.ReadOnlyField()
+
+    class Meta:
+        model = AnchorDailyReport
+        fields = ["id", "channel_type", "channel_type_name", "date", "anchor_name",
+                  "operator", "operator_name",
+                  "cost", "lead_count", "valid_lead", "acquisition_cost",
+                  "account_setup", "product_content",
+                  "exposure", "enter_room", "enter_rate", "avg_online", "avg_stay",
+                  "live_duration", "live_cost", "live_lead", "live_valid_lead", "lead_cost",
+                  "remark", "created_at", "updated_at"]
+        read_only_fields = ["created_at", "updated_at"]
+
+
+class LeadLedgerSerializer(serializers.ModelSerializer):
+    """客户留资明细台账"""
+    channel_name = serializers.CharField(source="get_channel_display", read_only=True)
+    follower_name = serializers.CharField(source="follower.display_name", read_only=True)
+    operator_name = serializers.CharField(source="operator.display_name", read_only=True)
+    is_passed_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LeadLedger
+        fields = ["id", "channel", "channel_name", "date", "customer_name", "contact",
+                  "need", "address", "follower", "follower_name", "is_passed",
+                  "is_passed_name", "detail", "operator", "operator_name",
+                  "created_at", "updated_at"]
+        read_only_fields = ["created_at", "updated_at"]
+
+    def get_is_passed_name(self, obj):
+        return "通过" if obj.is_passed else "未通过"
+
+
+class AnchorAdStatSerializer(serializers.ModelSerializer):
+    """直播投流数据"""
+    ad_type_name = serializers.CharField(source="get_ad_type_display", read_only=True)
+    operator_name = serializers.CharField(source="operator.display_name", read_only=True)
+    lead_cost = serializers.ReadOnlyField()
+    click_rate = serializers.ReadOnlyField()
+
+    class Meta:
+        model = AnchorAdStat
+        fields = ["id", "ad_type", "ad_type_name", "date", "platform",
+                  "operator", "operator_name",
+                  "cost", "impression", "click", "click_rate",
+                  "private_msg", "lead_count", "lead_cost", "remark",
+                  "created_at", "updated_at"]
         read_only_fields = ["created_at", "updated_at"]

@@ -1,0 +1,366 @@
+<template>
+  <div class="login-page">
+    <div class="login-box">
+      <!-- 品牌侧 -->
+      <div class="brand">
+        <div class="brand-deco deco-1"></div>
+        <div class="brand-deco deco-2"></div>
+        <div class="brand-inner">
+          <div class="logo">
+            <div class="logo-mark">{{ brand.logoChar }}</div>
+            <div class="logo-text">{{ brand.name }}</div>
+          </div>
+          <h1 class="brand-slogan">{{ brand.subtitle }}</h1>
+          <p class="brand-desc">打通「人 / 财 / 事 / 客」全链路，让老板一屏掌控经营，让团队高效协同。</p>
+
+          <ul class="features">
+            <li><span class="dot dot-blue"></span><b>人</b> · 入职培训 / 考勤审批 / 绩效排行</li>
+            <li><span class="dot dot-green"></span><b>财</b> · 业绩回款 / 做账进度 / 投放 ROI</li>
+            <li><span class="dot dot-orange"></span><b>事</b> · 工作汇报 / 审批流 / 任务闭环</li>
+            <li><span class="dot dot-purple"></span><b>客</b> · 线索到成交 / 续费预警 / 流失管控</li>
+          </ul>
+
+          <div class="brand-foot">AI 时代 · 财税服务机构的数字驾驶舱</div>
+        </div>
+      </div>
+
+      <!-- 表单侧：单框两方式 -->
+      <div class="form-side">
+        <h2 class="form-title">欢迎登录{{ brand.name }}</h2>
+
+        <el-tabs v-model="loginTab" stretch>
+          <!-- 方式一：账号密码 -->
+          <el-tab-pane label="账号密码" name="pwd">
+            <el-form ref="loginRef" :model="login" :rules="loginRules" size="large" @keyup.enter="onLogin">
+              <el-form-item prop="account">
+                <el-input v-model="login.account" placeholder="手机号 / 账号" :prefix-icon="User" />
+              </el-form-item>
+              <el-form-item prop="password">
+                <el-input v-model="login.password" type="password" placeholder="请输入密码" :prefix-icon="Lock" show-password />
+              </el-form-item>
+              <el-form-item prop="captcha">
+                <div class="captcha-row">
+                  <el-input v-model="login.captcha" placeholder="验证码（不区分大小写）" />
+                  <canvas ref="captchaRef" width="110" height="40" class="captcha-img" title="点击刷新" @click="makeCaptcha"></canvas>
+                </div>
+              </el-form-item>
+              <div class="login-meta">
+                <el-checkbox v-model="rememberMe">记住账号</el-checkbox>
+                <el-button link type="primary" @click="loginTab = 'sms'">忘记密码？用短信验证码登录</el-button>
+              </div>
+              <el-button type="primary" size="large" class="btn" :loading="loading" @click="onLogin">登 录</el-button>
+            </el-form>
+          </el-tab-pane>
+
+          <!-- 方式二：短信验证码登录（忘记密码走这里） -->
+          <el-tab-pane label="短信验证码" name="sms">
+            <el-form size="large" @keyup.enter="onSmsLogin">
+              <el-form-item>
+                <el-input v-model="sms.phone" placeholder="请输入员工绑定的手机号" :prefix-icon="User" maxlength="11" />
+              </el-form-item>
+              <el-form-item>
+                <div class="sms-row">
+                  <el-input v-model="sms.code" placeholder="6 位短信验证码" maxlength="6" />
+                  <el-button :disabled="smsCooldown > 0" @click="sendSms">
+                    {{ smsCooldown > 0 ? `${smsCooldown}s 后重发` : '获取验证码' }}
+                  </el-button>
+                </div>
+              </el-form-item>
+              <el-alert v-if="smsDemoTip" type="info" :closable="false" :title="smsDemoTip" style="margin-bottom:12px" />
+              <el-button type="primary" size="large" class="btn" :loading="smsLoading" @click="onSmsLogin">验证码登录</el-button>
+              <div class="sms-tip">验证码发送到员工档案中登记的手机号；手机号未绑定时请先用账号密码登录后在「个人中心」绑定。</div>
+            </el-form>
+          </el-tab-pane>
+        </el-tabs>
+
+        <!-- 自助入职：全员先提交申请，人事审核通过自动建账号（Boss 2026-10-28 指示） -->
+        <div class="apply-entry">
+          还没有账号？
+          <el-button link type="primary" @click="$router.push('/apply')">申请入职，创建账号 →</el-button>
+        </div>
+
+        <!-- 微信扫码登录暂未开放（待微信开放平台网站应用凭证，配置后恢复此区块） -->
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, onBeforeUnmount, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { User, Lock } from '@element-plus/icons-vue'
+import { authApi } from '@/api'
+import { useUserStore } from '@/store/user'
+import { brand } from '@/store/brand'
+
+const router = useRouter()
+const store = useUserStore()
+
+// ---------- 方式一：手机号 / 账号 + 密码 ----------
+const loginRef = ref()
+const loading = ref(false)
+const loginTab = ref('pwd')
+const login = reactive({ account: '', password: '', captcha: '' })
+const rememberMe = ref(localStorage.getItem('remember_account') === '1')
+if (rememberMe.value) login.account = localStorage.getItem('saved_account') || ''
+const loginRules = {
+  account: [{ required: true, message: '请输入手机号或账号', trigger: 'blur' }],
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+}
+
+// —— 图形防刷验证码（前端生成，防止脚本批量撞库）——
+const captchaRef = ref(null)
+let captchaText = ''
+function makeCaptcha() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  captchaText = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+  const cv = captchaRef.value
+  if (!cv) return
+  const ctx = cv.getContext('2d')
+  ctx.clearRect(0, 0, cv.width, cv.height)
+  ctx.fillStyle = '#f0f3f8'
+  ctx.fillRect(0, 0, cv.width, cv.height)
+  for (let i = 0; i < 4; i++) {
+    ctx.save()
+    ctx.font = `bold ${20 + Math.random() * 6}px sans-serif`
+    ctx.fillStyle = ['#3a7afe', '#2f9e6e', '#e08a2e', '#8a56d6'][i % 4]
+    ctx.translate(14 + i * 24, 26)
+    ctx.rotate((Math.random() - 0.5) * 0.5)
+    ctx.fillText(captchaText[i], -8, 0)
+    ctx.restore()
+  }
+  for (let i = 0; i < 4; i++) {
+    ctx.strokeStyle = 'rgba(60,80,120,.25)'
+    ctx.beginPath()
+    ctx.moveTo(Math.random() * cv.width, Math.random() * cv.height)
+    ctx.lineTo(Math.random() * cv.width, Math.random() * cv.height)
+    ctx.stroke()
+  }
+}
+const onLogin = async () => {
+  if (login.captcha.trim().toUpperCase() !== captchaText) {
+    ElMessage.error('验证码不正确，请重新输入')
+    login.captcha = ''
+    makeCaptcha()
+    return
+  }
+  await loginRef.value.validate()
+  loading.value = true
+  try {
+    const res = await authApi.login({ username: login.account, password: login.password })
+    if (res.code === 0) {
+      if (rememberMe.value) {
+        localStorage.setItem('remember_account', '1')
+        localStorage.setItem('saved_account', login.account)
+      } else {
+        localStorage.removeItem('remember_account')
+        localStorage.removeItem('saved_account')
+      }
+      store.setAuth(res.data.access, res.data.user)
+      ElMessage.success(`欢迎回来，${res.data.user.display_name}`)
+      router.push('/dashboard')
+    } else {
+      ElMessage.error(res.msg || '登录失败')
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+// ---------- 方式二：短信验证码登录（忘记密码走这里） ----------
+const sms = reactive({ phone: '', code: '' })
+const smsLoading = ref(false)
+const smsCooldown = ref(0)
+const smsDemoTip = ref('')
+let smsTimer = null
+const sendSms = async () => {
+  if (!/^1[3-9]\d{9}$/.test(sms.phone)) return ElMessage.warning('请输入正确的 11 位手机号')
+  try {
+    const res = await authApi.sendSmsCode({ phone: sms.phone, scene: 'LOGIN' })
+    if (res.code === 0) {
+      smsCooldown.value = res.data?.resend_interval || 60
+      smsTimer = setInterval(() => {
+        if (--smsCooldown.value <= 0) clearInterval(smsTimer)
+      }, 1000)
+      if (res.data?.demo && res.data?.debug_code) {
+        smsDemoTip.value = `未配置短信网关（演示模式），验证码：${res.data.debug_code}`
+        sms.code = res.data.debug_code
+      } else {
+        smsDemoTip.value = ''
+        ElMessage.success('验证码已发送')
+      }
+    } else {
+      ElMessage.error(res.msg || '发送失败')
+    }
+  } catch (e) { /* 拦截器已提示 */ }
+}
+const onSmsLogin = async () => {
+  if (!/^1[3-9]\d{9}$/.test(sms.phone)) return ElMessage.warning('请输入正确的 11 位手机号')
+  if (!/^\d{6}$/.test(sms.code)) return ElMessage.warning('请输入 6 位验证码')
+  smsLoading.value = true
+  try {
+    const res = await authApi.smsLogin({ phone: sms.phone, code: sms.code })
+    if (res.code === 0) {
+      store.setAuth(res.data.access, res.data.user)
+      ElMessage.success(`欢迎回来，${res.data.user.display_name}`)
+      router.push('/dashboard')
+    } else if (res.code === 2) {
+      ElMessage.warning(res.msg || '该手机号未绑定员工账号')
+    } else {
+      ElMessage.error(res.msg || '登录失败')
+    }
+  } finally { smsLoading.value = false }
+}
+
+// ---------- 方式二：微信扫码（同框展开） ----------
+const wxLoading = ref(false)
+const wxMock = ref(true)
+const wxUrl = ref('')
+const showWx = ref(false)
+let wxTimer = null
+let wxScene = ''
+const openWxScan = async () => {
+  try {
+    const res = await authApi.wxScanUrl()
+    if (res.code === 0) {
+      wxMock.value = res.data.mock || !res.data.url
+      wxUrl.value = res.data.url || ''
+      if (!wxMock.value) startWxPoll()
+    }
+  } catch (e) { /* 拦截器已提示 */ }
+}
+const onWxClick = () => {
+  showWx.value = true
+  if (!wxUrl.value && wxMock.value) openWxScan()
+  else if (!wxMock.value && !wxTimer) startWxPoll()
+}
+const startWxPoll = () => {
+  stopWxPoll()
+  wxTimer = setInterval(async () => {
+    try {
+      const res = await authApi.wxScanStatus({ scene: wxScene })
+      if (res.code === 0 && res.data?.status === 'SUCCESS') {
+        stopWxPoll()
+        const payload = res.data
+        store.setAuth(payload.access, payload.user)
+        ElMessage.success('微信扫码登录成功')
+        router.push('/dashboard')
+      } else if (res.code === 0 && res.data?.status === 'EXPIRED') {
+        stopWxPoll()
+        ElMessage.warning('二维码已过期，请刷新')
+      }
+    } catch (e) { /* ignore */ }
+  }, 2000)
+}
+const stopWxPoll = () => { if (wxTimer) { clearInterval(wxTimer); wxTimer = null } }
+const doMockScan = async () => {
+  wxLoading.value = true
+  try {
+    const res = await authApi.wxScanMock({ username: login.account || 'admin' })
+    if (res.code === 0) {
+      store.setAuth(res.data.access, res.data.user)
+      ElMessage.success('微信扫码登录成功')
+      router.push('/dashboard')
+    } else {
+      ElMessage.error(res.msg || '扫码登录失败')
+    }
+  } finally {
+    wxLoading.value = false
+  }
+}
+// 微信扫码登录暂未开放（凭证配置后恢复此行）：onMounted(() => openWxScan())
+onMounted(() => { makeCaptcha() })
+onBeforeUnmount(() => { stopWxPoll(); if (smsTimer) clearInterval(smsTimer) })
+</script>
+
+<style scoped>
+.login-page {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  padding: 36px 16px; box-sizing: border-box;
+  background:
+    radial-gradient(1100px 620px at 78% -12%, #dbe7ff 0%, rgba(244, 246, 251, 0) 62%),
+    radial-gradient(900px 500px at 4% 108%, #e8eefc 0%, rgba(244, 246, 251, 0) 60%),
+    linear-gradient(140deg, #f2f5fb 0%, #f7f9fd 55%, #eef2fa 100%);
+}
+.login-box {
+  width: 940px; min-height: 580px; background: #fff; border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, .9);
+  box-shadow: 0 2px 4px rgba(16, 24, 40, .04), 0 30px 80px -24px rgba(16, 24, 40, .22);
+  display: grid; grid-template-columns: 1fr 1fr; overflow: hidden;
+}
+/* 品牌侧 */
+.brand {
+  position: relative; overflow: hidden;
+  background:
+    radial-gradient(520px 320px at 86% 6%, rgba(91, 140, 255, .42) 0%, rgba(15, 28, 46, 0) 68%),
+    radial-gradient(420px 300px at 0% 100%, rgba(201, 169, 106, .18) 0%, rgba(15, 28, 46, 0) 66%),
+    linear-gradient(158deg, #16273d 0%, #101f33 52%, #0b1725 100%);
+  color: #fff; padding: 44px 40px;
+  display: flex; align-items: center;
+}
+.brand-deco { position: absolute; border-radius: 50%; filter: blur(8px); opacity: .35; }
+.deco-1 { width: 240px; height: 240px; background: #3f78ff; top: -80px; right: -60px; filter: blur(28px); opacity: .5; }
+.deco-2 { width: 180px; height: 180px; background: #c9a96a; bottom: -70px; left: -50px; filter: blur(34px); opacity: .22; }
+.brand-inner { position: relative; z-index: 1; width: 100%; }
+.logo { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; }
+.logo-mark {
+  width: 46px; height: 46px; border-radius: 14px;
+  background: linear-gradient(135deg, #4b83ff 0%, #1b4ce0 100%);
+  border: 1px solid rgba(255, 255, 255, .22);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 23px; font-weight: 800; color: #fff;
+  box-shadow: 0 8px 22px -8px rgba(47, 107, 255, .9), inset 0 1px 0 rgba(255,255,255,.3);
+}
+.logo-text { font-size: 21px; font-weight: 800; letter-spacing: .6px; color: #fff; }
+.brand-slogan { font-size: 23px; font-weight: 700; margin: 0 0 10px; line-height: 1.42; letter-spacing: -.2px; }
+.brand-slogan::after {
+  content: ''; display: block; width: 38px; height: 3px; border-radius: 3px; margin-top: 14px;
+  background: linear-gradient(90deg, #c9a96a, rgba(201, 169, 106, .15));
+}
+.brand-desc { font-size: 13.5px; opacity: .92; line-height: 1.8; margin: 0 0 24px; }
+.features { list-style: none; padding: 0; margin: 0 0 28px; display: grid; gap: 12px; }
+.features li { font-size: 14px; opacity: .95; display: flex; align-items: center; gap: 10px; }
+.features b { font-weight: 700; }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.dot-blue { background: #8ab4f8; } .dot-green { background: #5fd0a0; }
+.dot-orange { background: #ffc07a; } .dot-purple { background: #c4a7ff; }
+.brand-foot {
+  font-size: 12px; opacity: .8; padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,.18);
+}
+/* 表单侧 */
+.form-side { padding: 40px 44px 12px; display: flex; flex-direction: column; }
+.form-title { font-size: 23px; font-weight: 750; margin: 0 0 22px; color: var(--text-main); letter-spacing: -.4px; }
+.btn { width: 100%; }
+.apply-entry { margin-top: 14px; text-align: center; font-size: 13px; color: var(--text-sub, #909399); }
+.login-meta { display: flex; justify-content: space-between; align-items: center; margin: -6px 0 12px; }
+.captcha-row { display: flex; gap: 10px; width: 100%; align-items: center; }
+.captcha-row .el-input { flex: 1; }
+.captcha-img { width: 110px; height: 40px; border-radius: 6px; cursor: pointer; border: 1px solid #e4e8ef; flex: none; }
+.sms-row { display: flex; gap: 10px; width: 100%; }
+.sms-row .el-input { flex: 1; }
+.sms-tip { font-size: 12px; color: var(--text-sub, #909399); margin-top: 8px; line-height: 1.6; }
+.wx-inline { text-align: center; }
+.wx-btn {
+  width: 100%; border-color: #07c160; color: #07c160;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
+.wx-btn:hover { background: rgba(7,193,96,.06); }
+.wx-ico { font-size: 16px; }
+.wx-area { text-align: center; padding: 16px 0 6px; min-height: 170px; display: flex; align-items: center; justify-content: center; }
+.wx-qr-mock .wx-qr-img { font-size: 56px; margin: 12px 0; }
+.wx-qr-mock p { color: var(--text-sub); font-size: 14px; margin: 8px 0; }
+.wx-iframe { width: 100%; height: 320px; border: none; }
+.wx-tip { color: var(--text-sub); font-size: 12px; margin-top: 10px; }
+.tips { padding: 18px 0 28px; margin-top: auto; }
+.tips p { font-size: 12px; color: var(--text-sub); margin: 0 0 10px; }
+.accounts { display: grid; grid-template-columns: 1fr; gap: 6px; }
+.accounts div { display: grid; grid-template-columns: 60px 1fr 70px; gap: 6px; font-size: 12px; align-items: center; }
+.accounts span { color: var(--text-sub); }
+.accounts code {
+  background: var(--primary-50); padding: 3px 7px; border-radius: 6px;
+  font-family: Menlo, monospace; font-size: 11px; color: var(--primary-700);
+  border: 1px solid var(--primary-100);
+}
+</style>

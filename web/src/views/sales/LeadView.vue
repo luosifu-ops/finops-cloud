@@ -1,10 +1,34 @@
 <template>
   <BaseListView title="线索池" baseUrl="/sales/leads/" :columns="leadColumns" :search-fields="leadSearch" auto-form>
     <template #row-actions="{ row }">
-      <el-button link type="primary" @click="openFollow(row)">跟进</el-button>
+      <el-button link type="primary" @click="openDetail(row)">详情</el-button>
+      <el-button link type="success" @click="openFollow(row)">跟进</el-button>
       <el-button v-if="canManage" link type="warning" @click="openAssign(row)">指派</el-button>
     </template>
   </BaseListView>
+
+  <!-- 穿透详情抽屉：基础信息 + 全流程时间线 -->
+  <el-drawer v-model="detailVisible" :title="`线索详情 · ${detailRow?.name || ''}`" size="42%">
+    <div v-loading="detailLoading">
+      <el-descriptions :column="2" border size="small" style="margin-bottom:16px">
+        <el-descriptions-item label="客户">{{ detailRow?.name }}</el-descriptions-item>
+        <el-descriptions-item label="电话">{{ detailRow?.phone }}</el-descriptions-item>
+        <el-descriptions-item label="来源">{{ detailRow?.source_name || detailRow?.source }}</el-descriptions-item>
+        <el-descriptions-item label="状态">{{ detailRow?.status_name || detailRow?.status }}</el-descriptions-item>
+        <el-descriptions-item label="负责人">{{ detailRow?.owner_name || '公海' }}</el-descriptions-item>
+        <el-descriptions-item label="等级">{{ detailRow?.level_name || detailRow?.level }}</el-descriptions-item>
+      </el-descriptions>
+      <el-empty v-if="!timeline.length" description="暂无流转记录" :image-size="70" />
+      <el-timeline v-else style="padding-left:6px">
+        <el-timeline-item v-for="(t, i) in timeline" :key="i" :timestamp="t.time" placement="top"
+          :type="{ '创建': 'primary', '成交': 'success', '流失': 'danger' }[t.action]">
+          <b>{{ t.action }}</b>
+          <span style="color:#909399;font-size:12px;margin-left:8px">{{ t.who }}</span>
+          <div style="font-size:13px;color:#303133;margin-top:2px;white-space:pre-wrap">{{ t.detail }}</div>
+        </el-timeline-item>
+      </el-timeline>
+    </div>
+  </el-drawer>
 
   <!-- 跟进记录抽屉：在运营部线索池内直接查看/补录该线索的跟进记录 -->
   <el-drawer v-model="followVisible" :title="`跟进记录 · ${followRow?.name || ''}`" size="46%" @closed="resetFollow">
@@ -65,9 +89,7 @@
         <span>{{ assignRow?.name }}（{{ assignRow?.phone }}）</span>
       </el-form-item>
       <el-form-item label="指派给" required>
-        <el-select v-model="assignUid" filterable placeholder="选择成交师 / 销售" style="width: 100%">
-          <el-option v-for="u in users" :key="u.id" :label="u.display_name || u.username" :value="u.id" />
-        </el-select>
+        <PersonSelect v-model="assignUid" placeholder="选择成交师 / 销售，或输入姓名新增" />
       </el-form-item>
     </el-form>
     <template #footer>
@@ -83,6 +105,7 @@ import { ElMessage } from 'element-plus'
 import BaseListView from '@/components/BaseListView.vue'
 import http, { salesApi } from '@/api'
 import { useUserStore } from '@/store/user'
+import PersonSelect from '@/components/PersonSelect.vue'
 
 const store = useUserStore()
 // 仅主管/老板/超管可见「指派」入口
@@ -183,6 +206,24 @@ async function submitFollow() {
   } finally {
     fuSaving.value = false
   }
+}
+
+// ---- 穿透详情（2026-10-29 Boss 专项：创建/分配/跟进/成交全时间线）----
+const detailVisible = ref(false)
+const detailLoading = ref(false)
+const detailRow = ref(null)
+const timeline = ref([])
+async function openDetail(row) {
+  detailRow.value = row
+  detailVisible.value = true
+  detailLoading.value = true
+  timeline.value = []
+  try {
+    const r = await salesApi.leadTimeline(row.id)
+    const d = r?.data || r || {}
+    timeline.value = d.timeline || []
+    if (d.name) detailRow.value = { ...detailRow.value, ...d }
+  } catch (e) { /* 拦截器已提示 */ } finally { detailLoading.value = false }
 }
 
 // ---- 指派逻辑 ----

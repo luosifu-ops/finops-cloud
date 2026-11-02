@@ -208,9 +208,9 @@ const summaryCards = computed(() => {
   const s = summary.value || {}
   return [
     { label: '核算人数', value: s.headcount ?? '—', sub: filter.month, color: '#1f2329' },
-    { label: '应发总额', value: fmtMoney(s.total_amount), sub: '底薪+提成+奖金-扣款', color: '#d93026' },
-    { label: '提成总额', value: fmtMoney(s.total_commission), sub: '本月提成合计', color: '#0f9960' },
-    { label: '人均工资', value: fmtMoney(s.avg_amount), sub: '应发/人数', color: '#2f6fed' }
+    { label: '应发总额', value: fmtMoney(s.total_amount), sub: '底薪+提成+奖金-扣款', color: '#c3372c' },
+    { label: '提成总额', value: fmtMoney(s.total_commission), sub: '本月提成合计', color: '#12865a' },
+    { label: '人均工资', value: fmtMoney(s.avg_amount), sub: '应发/人数', color: '#2a4fd4' }
   ]
 })
 const deptDist = computed(() => summary.value?.departments || [])
@@ -395,5 +395,5 @@ onMounted(async () => {
 .pos { color: var(--success); font-weight: 600; }
 .self-total { display: flex; align-items: baseline; justify-content: flex-end; gap: 14px; padding: 14px 8px; border-top: 1px dashed var(--border); margin-top: 12px; }
 .self-total span { color: var(--text-sub); }
-.self-total b { color: #d93026; font-size: 26px; }
+.self-total b { color: #c3372c; font-size: 26px; }
 </style>

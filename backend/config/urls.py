@@ -56,6 +56,8 @@ urlpatterns = [
     # 公司通知公告（发布通知 / 发布文件 / 已读回执）
     path("api/notices/", include("apps.notices.urls")),
 
+    path("api/common/", include("apps.common.urls")),  # 操作日志/站内消息/系统配置（2026-10-29）
+
     # JWT 刷新（公网场景下把新令牌写回 Cookie，保持会话连续）
     path("api/token/refresh/", CookieTokenRefreshView.as_view(), name="token_refresh"),
 

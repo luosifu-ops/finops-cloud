@@ -1,8 +1,5 @@
 <template>
   <div class="dy">
-    <el-alert v-if="data.is_demo" type="warning" :closable="false" show-icon title="当前为演示数据"
-      description="在后端配置 DOUYIN_API_KEY 后显示真实对标数据（蝉妈妈 / 飞瓜等）。" style="margin-bottom:12px" />
-
     <div class="dy-search">
       <el-input v-model="q" placeholder="输入抖音号或昵称，如 财税老王" clearable style="width:320px" @keyup.enter="search" />
       <el-button type="primary" :loading="loading" @click="search">查 询</el-button>
@@ -64,7 +61,7 @@ async function search() {
   try {
     const r = await integrationApi.douyinAccount({ q: q.value })
     data.value = r.data || {}
-    if (!data.value.nickname) ElMessage.info('未找到（演示数据）')
+    if (!data.value.nickname) ElMessage.info('未找到匹配账号')
   } catch (e) {} finally { loading.value = false }
 }
 function openPortal(u) { if (u) window.open(u, '_blank') }

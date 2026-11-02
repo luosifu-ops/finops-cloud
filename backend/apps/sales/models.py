@@ -76,6 +76,9 @@ class Customer(BaseModel):
                               default="COOPERATING")
     signed_at = models.DateField("签约日期", null=True, blank=True)
     expire_at = models.DateField("服务到期日", null=True, blank=True)
+    # 客户标签（2026-10-29 Boss 专项：客户档案标签分级）：多对多，标签可增删改配色
+    tags = models.ManyToManyField("sales.CustomerTag", blank=True, related_name="customers",
+                                  verbose_name="客户标签")
     remark = models.TextField("备注", blank=True)
 
     class Meta:
@@ -284,3 +287,25 @@ class SalaryRecord(BaseModel):
 
     def __str__(self):
         return f"{self.user.display_name}-{self.month}"
+
+
+class CustomerTag(BaseModel):
+    """客户标签（2026-10-29 Boss 专项：客户档案标签分级）
+
+    用于客户分层运营：如「重点客户/高意向/待续费/需催款/转介绍来源」等，
+    支持自定义配色，前端以彩色标签展示并可按标签筛选。
+    """
+    name = models.CharField("标签名称", max_length=30, unique=True)
+    color = models.CharField("标签颜色", max_length=20, default="primary",
+                             help_text="前端标签配色：primary/success/warning/danger/info")
+    sort = models.IntegerField("排序", default=0)
+    is_active = models.BooleanField("启用", default=True)
+    remark = models.CharField("说明", max_length=200, blank=True)
+
+    class Meta:
+        verbose_name = "客户标签"
+        verbose_name_plural = verbose_name
+        ordering = ["sort", "id"]
+
+    def __str__(self):
+        return self.name

@@ -142,5 +142,5 @@ onMounted(load)
 .rv-ana { color: var(--text-sub); }
 .rv-tip { margin-top: 8px; }
 .ok { color: var(--success); }
-.bad { color: #d93026; }
+.bad { color: #c3372c; }
 </style>

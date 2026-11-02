@@ -223,5 +223,5 @@ onMounted(() => { loadDepts(); loadMine(); loadPendings() })
 .pf-actions { margin-top: 18px; text-align: center; }
 .pf-confirm { margin-bottom: 10px; }
 .pf-file-tip { font-size: 12px; color: var(--text-sub); margin-top: 8px; }
-.rej-hint { color: #d93026; font-weight: 600; }
+.rej-hint { color: #c3372c; font-weight: 600; }
 </style>

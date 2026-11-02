@@ -1,0 +1,1 @@
+import{B as e}from"./BaseListView-BhzAWayt.js";import{O as r,L as t}from"./vue-DoYXRPnN.js";import"./element-Codo3wlA.js";import"./index-BD97usGo.js";import"./export-DpRGdH86.js";const n={__name:"TeamReportView",setup(a){return(o,s)=>(t(),r(e,{title:"团队汇报",baseUrl:"/reports/daily-reports/team/","read-only":"","raw-array":"","can-delete":!1}))}};export{n as default};

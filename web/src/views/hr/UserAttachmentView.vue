@@ -24,9 +24,7 @@
     <el-dialog v-model="visible" title="上传员工材料附件" width="560px" @closed="resetForm">
       <el-form :model="form" label-width="100px">
         <el-form-item label="员工" required>
-          <el-select v-model="form.user" filterable placeholder="选择员工" style="width:100%">
-            <el-option v-for="u in users" :key="u.id" :label="u.display_name||u.username" :value="u.id" />
-          </el-select>
+          <PersonSelect v-model="form.user" placeholder="选择员工" />
         </el-form-item>
         <el-form-item label="材料类别">
           <el-select v-model="form.category" style="width:100%">
@@ -57,6 +55,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import http from '@/api'
+import PersonSelect from '@/components/PersonSelect.vue'
 
 const list = ref([])
 const users = ref([])

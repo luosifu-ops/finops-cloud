@@ -62,7 +62,7 @@ const statCards = computed(() => {
   const code = d.code
   if (code === 'SALES') {
     return [
-      { label: '业绩金额', value: '¥' + wan(d.amount || 0), color: '#d93026' },
+      { label: '业绩金额', value: '¥' + wan(d.amount || 0), color: '#c3372c' },
       { label: '订单数', value: fmt(d.orders || 0) + ' 单' },
       { label: '线索总数', value: fmt(d.lead_total || 0) },
       { label: '成交线索', value: fmt(d.lead_dealt || 0) },
@@ -72,21 +72,21 @@ const statCards = computed(() => {
   }
   if (code === 'ACCOUNT') {
     return [
-      { label: '做账任务总数', value: fmt(d.task_total || 0), color: '#2f6fed' },
-      { label: '已完成', value: fmt(d.task_done || 0), color: '#0f9960' },
-      { label: '逾期', value: fmt(d.overdue || 0), color: (d.overdue || 0) > 0 ? '#d93026' : '#1f2329' },
+      { label: '做账任务总数', value: fmt(d.task_total || 0), color: '#2a4fd4' },
+      { label: '已完成', value: fmt(d.task_done || 0), color: '#12865a' },
+      { label: '逾期', value: fmt(d.overdue || 0), color: (d.overdue || 0) > 0 ? '#c3372c' : '#1f2329' },
       { label: '代账客户数', value: fmt(d.client_total || 0) },
-      { label: '活跃客户', value: fmt(d.client_active || 0), color: '#0f9960' },
+      { label: '活跃客户', value: fmt(d.client_active || 0), color: '#12865a' },
     ]
   }
   if (code === 'OPS') {
     return [
-      { label: '投放总消耗', value: '¥' + wan(d.cost || 0), color: '#d9822b' },
+      { label: '投放总消耗', value: '¥' + wan(d.cost || 0), color: '#c07a12' },
       { label: '线索数', value: fmt(d.leads || 0) },
       { label: '加微数', value: fmt(d.wechat || 0) },
       { label: '成交数', value: fmt(d.deals || 0) },
-      { label: '成交额', value: '¥' + wan(d.amount || 0), color: '#d93026' },
-      { label: '投资回报率', value: fmt(d.roi || 0), color: (d.roi || 0) >= 3 ? '#0f9960' : '#d9822b' },
+      { label: '成交额', value: '¥' + wan(d.amount || 0), color: '#c3372c' },
+      { label: '投资回报率', value: fmt(d.roi || 0), color: (d.roi || 0) >= 3 ? '#12865a' : '#c07a12' },
       { label: '线索成本 CPL', value: '¥' + fmt(d.cpl || 0) },
       { label: '获客成本 CAC', value: '¥' + fmt(d.cac || 0) },
     ]

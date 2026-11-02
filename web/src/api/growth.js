@@ -48,12 +48,17 @@ export const growthApi = {
   claimLead: (id) => http.post(`${G}/leads/${id}/claim/`),
   transferLead: (id, data) => http.post(`${G}/leads/${id}/transfer/`, data),
   assignLead: (id, data) => http.post(`${G}/leads/${id}/assign/`, data),
+  bulkAssignLead: (data) => http.post(`${G}/leads/bulk-assign/`, data),
   setStage: (id, data) => http.post(`${G}/leads/${id}/set_stage/`, data),
   leadFlows: (id) => http.get(`${G}/leads/${id}/flows/`),
   stageLogs: (id) => http.get(`${G}/leads/${id}/stage_logs/`),
+  // 2026-10-30 增量：运营部线索池支持录入出错后修改 / 删除
+  updateLead: (id, data) => http.patch(`${G}/leads/${id}/`, data),
+  deleteLead: (id) => http.delete(`${G}/leads/${id}/`),
 
   // ---------- 公海 ----------
   pool: (params) => http.get(`${G}/pool/`, { params }),
+  poolStats: () => http.get(`${G}/pool/stats/`),
   flows: (params) => http.get(`${G}/flows/`, { params }),
 
   // ---------- 成交师 × 平台 专项分配 ----------
@@ -74,6 +79,8 @@ export const growthApi = {
   projects: (params) => http.get(`${G}/value-added/`, { params }),
   createProject: (data) => http.post(`${G}/value-added/`, data),
   updateProject: (id, data) => http.patch(`${G}/value-added/${id}/`, data),
+  // 2026-10-31 增量：增值项目删除
+  deleteProject: (id) => http.delete(`${G}/value-added/${id}/`),
 
   // ---------- 投放消耗 ----------
   adSpends: (params) => http.get(`${G}/ad-spend/`, { params }),
@@ -113,6 +120,12 @@ export const growthApi = {
   fromDeal: (data) => http.post(`${G}/field-tasks/from_deal/`, data),
   fieldTaskNodeChoices: () => http.get(`${G}/field-tasks/node_choices/`),
   addFieldNode: (id, data) => http.post(`${G}/field-tasks/${id}/add_node/`, data),
+  // 2026-10-30 增量：跨部门订单转接至外勤任务池 / 外勤任务编辑修改 / 外勤任务删除
+  transferInFieldTask: (data) => http.post(`${G}/field-tasks/transfer-in/`, data),
+  updateFieldTask: (id, data) => http.patch(`${G}/field-tasks/${id}/`, data),
+  deleteFieldTask: (id) => http.delete(`${G}/field-tasks/${id}/`),
+  // 2026-10-31 增量：外勤回退（把派给自己的任务退回任务池）
+  returnBackFieldTask: (id, data) => http.post(`${G}/field-tasks/${id}/return_back/`, data),
 
   // ---------- 增值业务合同上传（续费 / 上门拜访）----------
   uploadVaContract: (id, file) => {

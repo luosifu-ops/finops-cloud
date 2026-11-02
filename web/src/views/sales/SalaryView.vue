@@ -217,10 +217,10 @@ onMounted(() => { loadUsers(); loadHistory() })
 .card-tip { font-size: 12px; font-weight: 400; color: var(--text-sub); margin-left: 8px; }
 .salary-desc { margin-bottom: 16px; }
 .pos { color: var(--success); font-weight: 600; }
-.neg { color: var(--danger, #d93026); font-weight: 600; }
+.neg { color: var(--danger, #c3372c); font-weight: 600; }
 .total-box { display: flex; align-items: baseline; justify-content: flex-end; gap: 14px; padding: 14px 8px; border-top: 1px dashed var(--border); }
 .total-label { color: var(--text-sub); font-size: 14px; }
-.total-value { color: #d93026; font-size: 30px; font-weight: 800; }
+.total-value { color: #c3372c; font-size: 30px; font-weight: 800; }
 .total-value i { font-size: 14px; font-style: normal; font-weight: 500; }
 .result-actions { margin-top: 8px; text-align: right; }
 .save-tip { font-size: 12px; color: var(--success); margin-left: 10px; }

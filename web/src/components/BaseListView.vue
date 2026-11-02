@@ -1,8 +1,10 @@
 <template>
-  <div class="base-list">
-    <div class="bl-head">
-      <h2 class="bl-title">{{ title }}</h2>
-      <div class="bl-tools">
+  <div class="page">
+    <div class="page-head">
+      <div>
+        <h2 class="page-title">{{ title }}</h2>
+      </div>
+      <div class="page-actions">
         <template v-for="f in searchFields" :key="f.prop">
           <el-input
             v-if="f.type !== 'select'"
@@ -27,42 +29,57 @@
           </el-select>
         </template>
         <el-button v-if="searchFields.length" @click="reload">查询</el-button>
+        <el-date-picker v-model="dateRange" type="daterange" size="default" style="width: 240px"
+          value-format="YYYY-MM-DD" range-separator="~" start-placeholder="开始日期" end-placeholder="结束日期"
+          @change="onDateChange" />
         <el-button v-if="!readOnly && effectiveFormFields.length" type="primary" @click="openCreate">
           新 增
         </el-button>
+        <el-button v-if="!readOnly && canDelete" type="danger" plain @click="bulkRemove">
+          批量删除{{ selected.length ? `(${selected.length})` : '' }}
+        </el-button>
+        <el-button @click="exportCsv" :loading="exporting">导出</el-button>
+        <el-button v-if="!readOnly" @click="importVisible = true">导入</el-button>
         <slot name="header-extra" />
       </div>
     </div>
 
-    <el-table :data="list" v-loading="loading" border stripe style="width: 100%">
-      <el-table-column
-        v-for="c in displayColumns"
-        :key="c.prop"
-        :prop="c.prop"
-        :label="c.label"
-        :width="c.width"
-        :min-width="c.minWidth || 120"
-        :formatter="c.formatter"
-        show-overflow-tooltip
-      />
-      <el-table-column v-if="!readOnly" label="操作" :width="140" fixed="right">
-        <template #default="{ row }">
-          <el-button v-if="effectiveFormFields.length" link type="primary" @click="openEdit(row)">编辑</el-button>
-          <el-button v-if="canDelete" link type="danger" @click="remove(row)">删除</el-button>
-          <slot name="row-actions" :row="row" />
+    <div class="card bl-card">
+      <el-table :data="list" v-loading="loading" style="width: 100%"
+        @selection-change="onSelectionChange">
+        <el-table-column v-if="!readOnly" type="selection" width="42" fixed="left" />
+        <el-table-column
+          v-for="c in displayColumns"
+          :key="c.prop"
+          :prop="c.prop"
+          :label="c.label"
+          :width="c.width"
+          :min-width="c.minWidth || 120"
+          :formatter="c.formatter"
+          show-overflow-tooltip
+        />
+        <el-table-column v-if="!readOnly" label="操作" :width="140" fixed="right">
+          <template #default="{ row }">
+            <el-button v-if="effectiveFormFields.length" link type="primary" @click="openEdit(row)">编辑</el-button>
+            <el-button v-if="canDelete" link type="danger" @click="remove(row)">删除</el-button>
+            <slot name="row-actions" :row="row" />
+          </template>
+        </el-table-column>
+        <template #empty>
+          <el-empty description="暂无数据" :image-size="90" />
         </template>
-      </el-table-column>
-    </el-table>
+      </el-table>
 
-    <div class="bl-pager" v-if="!rawArray && total > pageSize">
-      <el-pagination
-        background
-        layout="total, prev, pager, next"
-        :total="total"
-        :page-size="pageSize"
-        :current-page="page"
-        @current-change="onPage"
-      />
+      <div class="bl-pager" v-if="!rawArray && total > pageSize">
+        <el-pagination
+          background
+          layout="total, prev, pager, next"
+          :total="total"
+          :page-size="pageSize"
+          :current-page="page"
+          @current-change="onPage"
+        />
+      </div>
     </div>
 
     <el-dialog v-model="visible" :title="editingId ? '编辑' : '新增'" :width="dialogWidth" @closed="resetForm">
@@ -73,6 +90,8 @@
             v-model="form[f.prop]"
             :type="f.type === 'textarea' ? 'textarea' : 'text'"
             :rows="f.type === 'textarea' ? 3 : undefined"
+            :placeholder="f.placeholder || ''"
+            :disabled="!!f.disabled"
           />
           <el-input-number v-else-if="f.type === 'number'" v-model="form[f.prop]" :min="0" style="width: 100%" />
           <el-date-picker
@@ -82,8 +101,8 @@
             value-format="YYYY-MM-DD"
             style="width: 100%"
           />
-          <el-select v-else-if="f.type === 'select'" v-model="form[f.prop]" clearable style="width: 100%">
-            <el-option v-for="o in f.options" :key="o.value" :label="o.label" :value="o.value" />
+          <el-select v-else-if="f.type === 'select'" v-model="form[f.prop]" clearable filterable style="width: 100%">
+            <el-option v-for="o in (optionSources[f.prop] || f.options || [])" :key="o.value" :label="o.label" :value="o.value" />
           </el-select>
           <el-switch v-else-if="f.type === 'switch'" v-model="form[f.prop]" />
         </el-form-item>
@@ -91,6 +110,21 @@
       <template #footer>
         <el-button @click="visible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="submit">保 存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- Excel/CSV 导入弹窗（全局规则1） -->
+    <el-dialog v-model="importVisible" title="批量导入（CSV 文件，首行为表头且与字段名一致）" width="520px">
+      <el-alert type="info" :closable="false" show-icon style="margin-bottom:12px"
+        title="先点「导出」拿到含表头的 CSV，按格式填好数据后导入；表头须与列表字段名一致" />
+      <input ref="importFileRef" type="file" accept=".csv,text/csv" style="display:none"
+        @change="onImportFile" />
+      <el-button type="primary" @click="importFileRef?.click()">选择 CSV 文件</el-button>
+      <span v-if="importResult" style="margin-left:12px" :class="importResult.fail ? 'imp-fail' : 'imp-ok'">
+        {{ importResult.text }}
+      </span>
+      <template #footer>
+        <el-button @click="importVisible = false">关闭</el-button>
       </template>
     </el-dialog>
   </div>
@@ -113,7 +147,10 @@ const props = defineProps({
   autoForm: { type: Boolean, default: false },   // 自动依据接口首行数据生成新增/编辑表单字段（补齐残缺页面操作功能，仅前端）
   idField: { type: String, default: 'id' },
   dialogWidth: { type: String, default: '520px' },
-  extraParams: { type: Object, default: () => ({}) }
+  extraParams: { type: Object, default: () => ({}) },
+  // 2026-10-30 增量：FK 下拉选项来源 { 字段名: [{value,label}] }，
+  // 页面自行加载用户/客户列表后传入，供表单 select 使用（优先级高于 f.options）
+  optionSources: { type: Object, default: () => ({}) }
 })
 
 const list = ref([])
@@ -126,6 +163,117 @@ const editingId = ref(null)
 const saving = ref(false)
 const form = reactive({})
 const query = reactive({})
+const dateRange = ref(null)
+const selected = ref([])
+const exporting = ref(false)
+const importVisible = ref(false)
+const importFileRef = ref(null)
+const importResult = ref(null)
+
+const emit = defineEmits(['selection-change'])
+// 2026-10-30 增量：勾选变化同步给父页面（供审批中心等自定义批量操作使用）
+function onSelectionChange(rows) {
+  selected.value = rows
+  emit('selection-change', rows)
+}
+
+function onDateChange(v) {
+  query.start_date = v?.[0] || ''
+  query.end_date = v?.[1] || ''
+  page.value = 1
+  reload()
+}
+
+// —— 批量删除（全局规则1：走后端 bulk-delete 软删 + 操作日志）——
+// 2026-10-31 改进：去掉 disabled 死按钮，未勾选时点击直接提示（避免"点不动"困惑）
+async function bulkRemove() {
+  if (!selected.value.length) {
+    ElMessage.warning('请先勾选要删除的记录（表格左侧复选框）')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(`确认删除选中的 ${selected.value.length} 条记录？删除后可在离职数据中恢复。`, '批量删除', { type: 'warning' })
+  } catch { return }
+  try {
+    await http.post(`${props.baseUrl.replace(/\/$/, '')}/bulk-delete/`, { ids: selected.value.map(r => r[props.idField]) })
+    ElMessage.success('批量删除成功')
+    selected.value = []
+    reload()
+  } catch (e) { /* 拦截器已提示 */ }
+}
+
+// —— 导出：拉取当前筛选全量 → CSV（UTF-8 BOM，Excel 直接打开不乱码）——
+async function exportCsv() {
+  exporting.value = true
+  try {
+    const cols = displayColumns.value.filter(c => c.prop !== 'selection')
+    let rows = []
+    try {
+      const p = { ...buildParams() }
+      delete p.page; delete p.page_size
+      const resp = await http.get(props.baseUrl.replace(/\/$/, '') + '/export/', { params: p })
+      const body = resp || {}
+      rows = body?.data?.data || body?.data || body || []
+      if (!Array.isArray(rows)) rows = []
+    } catch (e) { /* 端点不存在时退化为当前页 */ rows = list.value }
+    if (!rows.length) return ElMessage.warning('没有可导出的数据')
+    const esc = (s) => { const v = String(s ?? ''); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v }
+    const header = cols.map(c => esc(c.label)).join(',')
+    const lines = rows.map(r => cols.map(c => esc(formatCell(c, r[c.prop]))).join(','))
+    const blob = new Blob(['\uFEFF' + header + '\n' + lines.join('\n')], { type: 'text/csv;charset=utf-8' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `${props.title || '数据'}_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(a.href)
+    ElMessage.success(`已导出 ${rows.length} 条`)
+  } finally { exporting.value = false }
+}
+
+// —— 导入：解析 CSV（支持逗号/制表符），逐行 POST ——
+function parseCsvLine(line) {
+  const out = []; let cur = ''; let inQ = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (inQ) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++ }
+      else if (ch === '"') inQ = false
+      else cur += ch
+    } else if (ch === '"') inQ = true
+    else if (ch === ',') { out.push(cur); cur = '' }
+    else cur += ch
+  }
+  out.push(cur)
+  return out
+}
+
+async function onImportFile(ev) {
+  const file = ev.target.files?.[0]
+  if (!file) return
+  const text = (await file.text()).replace(/^\uFEFF/, '')
+  const lines = text.split(/\r?\n/).filter(l => l.trim())
+  if (lines.length < 2) return ElMessage.warning('文件为空或只有表头')
+  const headers = parseCsvLine(lines[0]).map(h => h.trim())
+  // 反查字段名：label → prop
+  const cols = displayColumns.value
+  const propOf = (h) => {
+    const hit = cols.find(c => c.label === h || c.prop === h)
+    return hit ? hit.prop : headers.includes(h) ? h : null
+  }
+  const fieldProps = headers.map(propOf)
+  const skip = fieldProps.filter(p => !p)
+  let ok = 0, fail = 0
+  for (const line of lines.slice(1)) {
+    const cells = parseCsvLine(line)
+    const payload = {}
+    fieldProps.forEach((p, i) => { if (p && cells[i] !== undefined && cells[i] !== '') payload[p] = cells[i] })
+    if (!Object.keys(payload).length) continue
+    try { await http.post(props.baseUrl, payload); ok++ } catch (e) { fail++ }
+  }
+  importResult.value = { fail, text: `导入完成：成功 ${ok} 条${fail ? `，失败 ${fail} 条${skip.length ? `（未识别列头: ${skip.join(',')}）` : ''}` : ''}` }
+  ev.target.value = ''
+  reload()
+}
 
 // 未显式配置列时，按首行字段自动生成列（隐藏内部字段）
 const HIDDEN = new Set(['is_deleted', 'created_by', 'updated_at', 'deleted_at'])
@@ -476,6 +624,16 @@ const ENUM_FALLBACK = {
 function formatCell(col, val) {
   if (val === true || val === false) return val ? '是' : '否'
   if (val === null || val === undefined || val === '') return val
+  // 对象 / 数组值（如 JSON 明细字段）：展开为可读文本，避免表格出现 [object Object]
+  if (typeof val === 'object') {
+    if (Array.isArray(val)) {
+      return val.map((x) => (x && typeof x === 'object' ? Object.values(x).filter(Boolean).join(' ') : x)).join('；')
+    }
+    const parts = Object.entries(val)
+      .filter(([, v]) => v !== null && v !== undefined && v !== '')
+      .map(([k, v]) => `${labelFor(k)}：${v && typeof v === 'object' ? JSON.stringify(v) : v}`)
+    return parts.join('；') || '—'
+  }
   if (col.dict && col.dict[val] !== undefined) return col.dict[val]
   if (col.options) {
     const hit = col.options.find((o) => o.value === val)
@@ -517,8 +675,41 @@ function deriveFormFields(row) {
 const effectiveFormFields = computed(() => {
   if (props.formFields && props.formFields.length) return props.formFields
   if (props.autoForm && list.value.length) return deriveFormFields(list.value[0])
+  // 2026-10-30 增量：空表兜底 —— autoForm 页面在没有任何数据时，
+  // 也能从后端 DRF OPTIONS 元数据生成新增/编辑表单（清空演示数据后仍可正常录入）
+  if (props.autoForm && metaFormFields.value.length) return metaFormFields.value
   return []
 })
+
+// —— autoForm 空表兜底：拉取 DRF OPTIONS 元数据生成表单字段 ——
+const metaFormFields = ref([])
+const META_SKIP = new Set(['id', 'is_deleted', 'deleted_at', 'created_at', 'updated_at', 'created_by'])
+function fieldsFromMeta(actionsPost) {
+  const out = []
+  for (const [k, f] of Object.entries(actionsPost || {})) {
+    if (!f || META_SKIP.has(k) || f.read_only) continue
+    if (k.endsWith('_name') || k.endsWith('_label') || k.endsWith('_display')) continue
+    // 非必填的 datetime 留给后端默认值，避免「日期选择器提交 date-only 字符串」格式冲突
+    if (f.type === 'datetime' && !f.required) continue
+    let type = 'text'
+    if (f.choices && f.choices.length) type = 'select'
+    else if (f.type === 'boolean') type = 'switch'
+    else if (['integer', 'float', 'decimal'].includes(f.type)) type = 'number'
+    else if (f.type === 'date' || f.type === 'datetime') type = 'date'
+    const field = { prop: k, label: f.label || labelFor(k), type, required: !!f.required }
+    if (type === 'select') field.options = f.choices.map((c) => ({ value: c.value, label: c.display_name }))
+    out.push(field)
+  }
+  return out
+}
+async function loadMetaForm() {
+  if (!props.autoForm || metaFormFields.value.length) return
+  try {
+    const r = await http.options(props.baseUrl)
+    const post = r?.actions?.POST || r?.data?.actions?.POST
+    if (post) metaFormFields.value = fieldsFromMeta(post)
+  } catch (e) { /* 元数据不可用时静默，退回原行为 */ }
+}
 
 const displayColumns = computed(() => {
   const base = (props.columns && props.columns.length)
@@ -530,7 +721,11 @@ const displayColumns = computed(() => {
           .filter((k) => !HIDDEN.has(k))
           .map((k) => ({ prop: k, label: labelFor(k) }))
       })()
-  return base.map((c) => ({ ...c, formatter: (r, col, v) => formatCell(c, v) }))
+  return base.map((c) => ({
+    ...c,
+    // 页面显式传了 formatter 就用页面的（如"用户名"列改显示姓名），否则走全站统一格式化
+    formatter: c.formatter || ((r, col, v) => formatCell(c, v))
+  }))
 })
 
 function buildParams() {
@@ -588,7 +783,8 @@ function openCreate() {
   for (const f of effectiveFormFields.value) {
     if (f.type === 'number') form[f.prop] = 0
     else if (f.type === 'switch') form[f.prop] = false
-    else if (f.type === 'date') form[f.prop] = today
+    else if (f.type === 'date') form[f.prop] = f.default !== undefined ? f.default : today
+    else if (f.type === 'select') form[f.prop] = f.default !== undefined ? f.default : ''
     else form[f.prop] = ''
   }
   visible.value = true
@@ -635,15 +831,14 @@ async function remove(row) {
   }
 }
 
-onMounted(reload)
+onMounted(() => { reload(); loadMetaForm() })
 
-defineExpose({ reload })
+defineExpose({ reload, selected })
 </script>
 
 <style scoped>
-.base-list { padding: 4px; }
-.bl-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
-.bl-title { font-size: 18px; margin: 0; }
-.bl-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.bl-pager { margin-top: 14px; display: flex; justify-content: flex-end; }
+.bl-card { padding: 6px 6px 14px; }
+.bl-pager { margin-top: 6px; padding: 0 12px; display: flex; justify-content: flex-end; }
+.imp-ok { color: var(--success); font-size: 13px; }
+.imp-fail { color: var(--danger); font-size: 13px; }
 </style>

@@ -13,6 +13,46 @@ http.interceptors.request.use(config => {
   return config
 })
 
+// 常见字段中文名：后端只返回英文字段名，直接弹给用户看不懂
+const FIELD_LABELS = {
+  name: '名称', code: '编码', username: '登录账号', password: '密码', phone: '手机号',
+  email: '邮箱', title: '标题', content: '内容', amount: '金额', total_amount: '合同金额',
+  customer: '客户', contract: '合同', department: '部门', team: '团队', position: '岗位',
+  leader: '负责人', owner: '负责人', date: '日期', start_date: '开始日期', end_date: '结束日期',
+  status: '状态', remark: '备注', description: '描述', order: '排序', parent: '上级',
+  credit_code: '统一社会信用代码', contact: '联系人', wechat: '微信号', address: '地址',
+  industry: '行业', region: '地区', source: '来源', level: '等级', id_card: '身份证号',
+  entry_date: '入职日期', leave_date: '离职日期', salary: '薪资', base_salary: '底薪',
+  non_field_errors: '提交内容', detail: '详情'
+}
+
+// 把后端各种错误结构（业务 msg / DRF detail / 字段级数组）统一翻成人话
+function extractErrorMessage(err) {
+  const res = err.response
+  if (!res) {
+    if (err.code === 'ECONNABORTED') return '请求超时，请检查网络后重试'
+    return '网络连接失败，请检查网络或稍后再试'
+  }
+  const data = res.data
+  if (data == null || data === '') return `请求失败（${res.status}）`
+  if (typeof data === 'string') {
+    return res.status >= 500 ? `服务器异常（${res.status}），请截图联系管理员` : data.slice(0, 120)
+  }
+  if (data.msg) return data.msg
+  if (data.message) return data.message
+  if (typeof data.detail === 'string') return data.detail
+  // DRF 字段级校验：{ phone: ['该字段是必填项。'], name: ['...'] }
+  const parts = []
+  for (const [key, val] of Object.entries(data)) {
+    const label = FIELD_LABELS[key] || key
+    if (Array.isArray(val)) parts.push(`${label}：${val.join('；')}`)
+    else if (typeof val === 'string') parts.push(`${label}：${val}`)
+    else if (val && typeof val === 'object') parts.push(`${label}：${JSON.stringify(val).slice(0, 80)}`)
+  }
+  if (parts.length) return parts.slice(0, 3).join(' | ')
+  return `请求失败（${res.status}）`
+}
+
 http.interceptors.response.use(
   res => res.data,
   err => {
@@ -22,7 +62,10 @@ http.interceptors.response.use(
       router.push('/login')
       ElMessage.error('登录已过期，请重新登录')
     } else {
-      ElMessage.error(err.response?.data?.detail || err.message || '请求失败')
+      // 调用方可设 config.silentError = true 自行处理错误，避免重复弹窗
+      if (!err.config?.silentError) {
+        ElMessage({ type: 'error', message: extractErrorMessage(err), duration: 5000, showClose: true })
+      }
     }
     return Promise.reject(err)
   }
@@ -32,6 +75,9 @@ http.interceptors.response.use(
 export const authApi = {
   login: (data) => http.post('/accounts/auth/login/', data),
   me: () => http.get('/accounts/auth/me/'),
+  updateMe: (data) => http.patch('/accounts/auth/me/', data, {
+    headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000
+  }),
   changePassword: (data) => http.post('/accounts/auth/change-password/', data),
   // 手机号验证码登录
   sendSmsCode: (data) => http.post('/accounts/auth/sms/send/', data),
@@ -50,6 +96,9 @@ export const orgApi = {
   updateDepartment: (id, data) => http.patch(`/accounts/departments/${id}/`, data),
   deleteDepartment: (id) => http.delete(`/accounts/departments/${id}/`),
   teams: (params) => http.get('/accounts/teams/', { params }),
+  createTeam: (data) => http.post('/accounts/teams/', data),
+  updateTeam: (id, data) => http.patch(`/accounts/teams/${id}/`, data),
+  deleteTeam: (id) => http.delete(`/accounts/teams/${id}/`),
   positions: (params) => http.get('/accounts/positions/', { params }),
   createPosition: (data) => http.post('/accounts/positions/', data),
   updatePosition: (id, data) => http.patch(`/accounts/positions/${id}/`, data),
@@ -67,6 +116,8 @@ export const orgApi = {
   // 入职申请
   entries: (params) => http.get('/accounts/entries/', { params }),
   createEntry: (data) => http.post('/accounts/entries/', data),
+  updateEntry: (id, data) => http.patch(`/accounts/entries/${id}/`, data),
+  deleteEntry: (id) => http.delete(`/accounts/entries/${id}/`),
   approveEntry: (id, data) => http.post(`/accounts/entries/${id}/approve/`, data || {}),
   rejectEntry: (id, data) => http.post(`/accounts/entries/${id}/reject/`, data || {})
 }
@@ -219,8 +270,10 @@ export const salesApi = {
   createCall: (data) => http.post('/sales/call-records/', data),
   myCallStat: (params) => http.get('/sales/call-records/my-stat/', { params }),
   followups: (params) => http.get('/sales/followups/', { params }),
+  leadTimeline: (id) => http.get(`/sales/leads/${id}/timeline/`),
   createFollowup: (data) => http.post('/sales/followups/', data),
   updateFollowup: (id, data) => http.patch(`/sales/followups/${id}/`, data),
+  deleteFollowup: (id) => http.delete(`/sales/followups/${id}/`),
   upcoming: () => http.get('/sales/followups/upcoming/'),
   targets: (params) => http.get('/sales/targets/', { params }),
   batchSetTarget: (data) => http.post('/sales/targets/batch-set/', data),
@@ -237,6 +290,11 @@ export const salesApi = {
 // ---------- 会计 ----------
 export const accApi = {
   taxTypes: (params) => http.get('/accounting/tax-types/', { params }),
+  bookSets: (params) => http.get('/accounting/book-sets/', { params }),
+  createBookSet: (data) => http.post('/accounting/book-sets/', data),
+  updateBookSet: (id, data) => http.patch(`/accounting/book-sets/${id}/`, data),
+  deleteBookSet: (id) => http.delete(`/accounting/book-sets/${id}/`),
+  bookSetSummary: () => http.get('/accounting/book-sets/summary/'),
   clients: (params) => http.get('/accounting/clients/', { params }),
   createClient: (data) => http.post('/accounting/clients/', data),
   updateClient: (id, data) => http.patch(`/accounting/clients/${id}/`, data),
@@ -326,7 +384,10 @@ export const integrationApi = {
   deleteTrainingVideo: (id) => http.delete(`/integrations/training/videos/${id}/`),
   // 对标账号搜索（多平台：抖音/快手/小红书/视频号）
   benchmarkPlatforms: () => http.get('/integrations/benchmark/platforms/'),
-  benchmarkSearch: (params) => http.get('/integrations/benchmark/search/', { params })
+  benchmarkSearch: (params) => http.get('/integrations/benchmark/search/', { params }),
+  // 钉钉通讯录同步（仅老板/人事）
+  dingtalkStatus: () => http.get('/integrations/dingtalk/status/'),
+  dingtalkSync: (data) => http.post('/integrations/dingtalk/sync/', data || {})
 }
 
 // ---------- 公司介绍 ----------
@@ -385,3 +446,14 @@ export const brandingApi = {
 }
 
 export default http
+
+// ---------- 全局基础能力（2026-10-29）：操作日志 / 站内消息 / 系统配置 ----------
+export const commonApi = {
+  opLogs: (params) => http.get('/common/op-logs/', { params }),
+  inbox: (params) => http.get('/common/inbox/', { params }),
+  inboxUnread: () => http.get('/common/inbox/unread-count/'),
+  inboxMarkRead: (id) => http.post(`/common/inbox/${id}/mark-read/`),
+  inboxMarkAll: () => http.post('/common/inbox/mark-all-read/'),
+  sysConfig: () => http.get('/common/sys-config/'),
+  saveSysConfig: (data) => http.put('/common/sys-config/', data),
+}

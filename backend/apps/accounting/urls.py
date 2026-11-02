@@ -16,6 +16,7 @@ router.register("annual-reports", viewsets.AnnualReportViewSet, basename="annual
 router.register("business-items", viewsets.BusinessItemViewSet, basename="business-item")
 router.register("client-documents", viewsets.ClientDocumentViewSet, basename="client-document")
 router.register("handovers", viewsets.HandoverRecordViewSet, basename="handover-record")
+router.register("book-sets", viewsets.BookSetViewSet, basename="book-set")
 
 urlpatterns = [
     path("", include(router.urls)),

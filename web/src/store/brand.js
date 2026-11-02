@@ -12,6 +12,14 @@ export const brand = reactive({
   loaded: false
 })
 
+// 公安联网备案官方要求：备案号需为可点击链接，跳转到公安部查询页（code 取备案号中的数字）
+export function policeBeianUrl(no) {
+  const m = String(no || '').match(/\d{8,}/)
+  return m
+    ? `https://beian.mps.gov.cn/#/query/webSearch?code=${m[0]}`
+    : 'https://beian.mps.gov.cn/'
+}
+
 export async function initBrand() {
   try {
     const data = await brandingApi.get()

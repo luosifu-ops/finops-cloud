@@ -129,11 +129,11 @@ const sumField = (f) => rows.value.reduce((a, r) => a + (Number(r[f]) || 0), 0)
 const summaryCards = computed(() => {
   const s = summary.value || {}
   return [
-    { label: '总业绩', value: fmtMoney(s.total_amount != null ? s.total_amount : sumField('contract_amount')), sub: statMonth.value, color: '#d93026' },
+    { label: '总业绩', value: fmtMoney(s.total_amount != null ? s.total_amount : sumField('contract_amount')), sub: statMonth.value, color: '#c3372c' },
     { label: '成交单数', value: s.total_deal != null ? s.total_deal : sumField('deal_count'), sub: '合同成交总数', color: '#1f2329' },
-    { label: '新增客户', value: s.total_new_customer != null ? s.total_new_customer : sumField('new_customer_count'), sub: '本期新增', color: '#2f6fed' },
-    { label: '通话量', value: s.total_call != null ? s.total_call : sumField('call_count'), sub: '电话外呼量', color: '#0f9960' },
-    { label: '目标完成率', value: (s.achieve_rate != null ? s.achieve_rate : '—') + (s.achieve_rate != null ? '%' : ''), sub: Number(s.achieve_rate) >= 100 ? '已达标' : '未达标', color: Number(s.achieve_rate) >= 100 ? '#d93026' : '#909399' }
+    { label: '新增客户', value: s.total_new_customer != null ? s.total_new_customer : sumField('new_customer_count'), sub: '本期新增', color: '#2a4fd4' },
+    { label: '通话量', value: s.total_call != null ? s.total_call : sumField('call_count'), sub: '电话外呼量', color: '#12865a' },
+    { label: '目标完成率', value: (s.achieve_rate != null ? s.achieve_rate : '—') + (s.achieve_rate != null ? '%' : ''), sub: Number(s.achieve_rate) >= 100 ? '已达标' : '未达标', color: Number(s.achieve_rate) >= 100 ? '#c3372c' : '#909399' }
   ]
 })
 const top10 = computed(() => [...rows.value].sort((a, b) => (b.contract_amount || 0) - (a.contract_amount || 0)).slice(0, 10))
@@ -208,16 +208,16 @@ onMounted(async () => { await loadDepartments(); await reload() })
 .stat-card .value { font-size: 22px; font-weight: 800; margin: 6px 0; }
 .stat-card .sub { font-size: 12px; color: #909399; }
 .target-line { display: flex; gap: 24px; margin-top: 12px; flex-wrap: wrap; font-size: 14px; color: var(--text-sub); }
-.rate-ok { color: #d93026; font-weight: 800; }
+.rate-ok { color: #c3372c; font-weight: 800; }
 .rate-no { color: #909399; }
 .rank { display: flex; flex-direction: column; gap: 10px; }
 .rank-item { display: flex; align-items: center; gap: 10px; }
 .rank-no { width: 24px; height: 24px; line-height: 24px; text-align: center; border-radius: 6px; background: #f0f2f5; font-size: 12px; font-weight: 700; color: #606266; }
-.rank-no.no1 { background: #fde2e2; color: #d93026; }
-.rank-no.no2 { background: #fdf0e0; color: #d9822b; }
-.rank-no.no3 { background: #e6f4ea; color: #0f9960; }
+.rank-no.no1 { background: #fde2e2; color: #c3372c; }
+.rank-no.no2 { background: #fdf0e0; color: #c07a12; }
+.rank-no.no3 { background: #e6f4ea; color: #12865a; }
 .rank-name { width: 120px; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rank-bar { flex: 1; background: #f0f2f5; border-radius: 6px; height: 18px; overflow: hidden; }
-.rank-fill { height: 100%; background: linear-gradient(90deg, #2f6fed, #5b8def); border-radius: 6px; transition: width .4s; }
+.rank-fill { height: 100%; background: linear-gradient(90deg, #2a4fd4, #5b8def); border-radius: 6px; transition: width .4s; }
 .rank-val { width: 120px; text-align: right; font-size: 13px; font-weight: 600; }
 </style>
