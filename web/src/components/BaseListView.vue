@@ -46,7 +46,7 @@
     </div>
 
     <div class="card bl-card">
-      <el-table :data="list" v-loading="loading" style="width: 100%"
+      <el-table :data="list" v-loading="loading" style="width: 100%" :max-height="tableHeight || undefined"
         @selection-change="onSelectionChange">
         <el-table-column v-if="!readOnly" type="selection" width="42" fixed="left" />
         <el-table-column
@@ -152,6 +152,7 @@ const props = defineProps({
   autoForm: { type: Boolean, default: false },   // 自动依据接口首行数据生成新增/编辑表单字段（补齐残缺页面操作功能，仅前端）
   idField: { type: String, default: 'id' },
   dialogWidth: { type: String, default: '520px' },
+  tableHeight: { type: [Number, String], default: 0 },  // 2026-11-02：设置后表头吸顶、表体滚动
   extraParams: { type: Object, default: () => ({}) },
   // 2026-10-30 增量：FK 下拉选项来源 { 字段名: [{value,label}] }，
   // 页面自行加载用户/客户列表后传入，供表单 select 使用（优先级高于 f.options）
@@ -331,7 +332,7 @@ const FIELD_LABELS = {
   is_published: '是否已发布', published: '是否已发布',
   is_deal: '是否成交', has_wechat: '是否已加微', is_married: '是否已婚', required: '是否必填',
   // 金额 / 数量
-  amount: '金额', money: '金额', price: '单价', fee: '费用', cost: '成本', cost_total: '总成本',
+  amount: '金额', money: '金额', price: '单价', fee: '费用', cost: '花费', cost_input: '成本', cost_total: '总成本',
   count: '数量', num: '数量', total: '合计', subtotal: '小计', quantity: '数量',
   rate: '比率', percent: '百分比', conversion_rate: '转化率', completion: '完成率',
   base_salary: '底薪', performance: '业绩', commission: '提成', bonus: '奖金', deduction: '扣款',

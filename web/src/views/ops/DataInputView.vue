@@ -1,8 +1,9 @@
 <template>
   <div>
-    <!-- ========== 每日投放数据录入（成本字段已并入表单，2026-11-02 Boss 指示） ========== -->
+    <!-- ========== 每日投放数据录入（显式中文列序 + 固定表头滚动，2026-11-02 Boss 指示） ========== -->
     <BaseListView title="每日投放数据" baseUrl="/ops/daily-stats/" :form-fields="statForm"
-      :can-delete="true" :option-sources="statOptions" />
+      :columns="statColumns" :can-delete="true" :option-sources="statOptions"
+      table-height="560" />
   </div>
 </template>
 
@@ -29,6 +30,27 @@ const statForm = [
   { prop: 'deal_count', label: '成交数', type: 'number' },
   { prop: 'deal_amount', label: '成交金额(元)', type: 'number' },
   { prop: 'remark', label: '备注', type: 'textarea' },
+]
+
+// ---------- 显式列定义：表头与录入字段一一对应、顺序固定 ----------
+const statColumns = [
+  { prop: 'date', label: '日期', width: 110 },
+  { prop: 'platform_name', label: '平台', width: 100 },
+  { prop: 'account_name', label: '账户', width: 120 },
+  { prop: 'cost', label: '花费(元)', width: 100 },
+  { prop: 'cost_input', label: '成本(元)', width: 100 },
+  { prop: 'impression', label: '曝光量', width: 90 },
+  { prop: 'click', label: '点击量', width: 90 },
+  { prop: 'click_rate', label: '点击率', width: 90 },
+  { prop: 'lead_count', label: '线索数', width: 90 },
+  { prop: 'valid_lead', label: '有效线索', width: 95 },
+  { prop: 'phone_added', label: '电话数', width: 90 },
+  { prop: 'wechat_added', label: '加微数', width: 90 },
+  { prop: 'visit_count', label: '访问量', width: 90 },
+  { prop: 'deal_count', label: '成交数', width: 90 },
+  { prop: 'deal_amount', label: '成交金额(元)', width: 115 },
+  { prop: 'operator_name', label: '录入人', width: 95 },
+  { prop: 'remark', label: '备注', minWidth: 140 },
 ]
 
 // ---------- 字典下拉（平台/账户/计划），替代原「手填ID」 ----------
