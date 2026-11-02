@@ -2,7 +2,7 @@
 from rest_framework import serializers
 from .models import (
     AdPlatform, AdAccount, AdCampaign, AdDailyStat, AdCreative,
-    ContentPost, ContentStat, ChannelBudget, OpsDailyReport,
+    ContentPost, ContentStat, ChannelBudget, OpsDailyReport, CostRecord,
 )
 
 
@@ -188,3 +188,16 @@ class AnchorAdStatSerializer(serializers.ModelSerializer):
                   "private_msg", "lead_count", "lead_cost", "remark",
                   "created_at", "updated_at"]
         read_only_fields = ["created_at", "updated_at"]
+
+
+class CostRecordSerializer(serializers.ModelSerializer):
+    """运营成本记录"""
+    category_label = serializers.CharField(source="get_category_display", read_only=True)
+    platform_name = serializers.CharField(source="platform.name", read_only=True, default="")
+    created_by_name = serializers.CharField(source="created_by.display_name", read_only=True, default="")
+
+    class Meta:
+        model = CostRecord
+        fields = ["id", "date", "category", "category_label", "platform", "platform_name",
+                  "name", "amount", "remark", "created_by", "created_by_name", "created_at"]
+        read_only_fields = ["created_by", "created_at"]

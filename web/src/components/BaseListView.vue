@@ -94,7 +94,9 @@
             :placeholder="f.placeholder || ''"
             :disabled="!!f.disabled"
           />
-          <el-input-number v-else-if="f.type === 'number'" v-model="form[f.prop]" :min="0" style="width: 100%" />
+          <!-- 2026-11-02 Boss 专项：去掉两侧 +/- 控件，全部改为直接文字输入数字 -->
+          <el-input-number v-else-if="f.type === 'number'" v-model="form[f.prop]" :min="0"
+            :controls="false" placeholder="直接输入数字" style="width: 100%" />
           <el-date-picker
             v-else-if="f.type === 'date'"
             v-model="form[f.prop]"

@@ -20,3 +20,4 @@ router.register("anchor-ad-stats", viewsets.AnchorAdStatViewSet, basename="ancho
 urlpatterns = [
     path("", include(router.urls)),
 ]
+router.register("cost-records", viewsets.CostRecordViewSet, basename="cost-record")

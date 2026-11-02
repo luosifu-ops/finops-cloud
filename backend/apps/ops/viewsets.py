@@ -14,13 +14,14 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 from .models import (
     AdPlatform, AdAccount, AdCampaign, AdDailyStat, AdCreative,
-    ContentPost, ContentStat, ChannelBudget, OpsDailyReport,
+    ContentPost, ContentStat, ChannelBudget, OpsDailyReport, CostRecord,
 )
 from .serializers import (
     AdPlatformSerializer, AdAccountSerializer, AdCampaignSerializer,
     AdDailyStatSerializer, AdCreativeSerializer, ContentPostSerializer,
     ContentStatSerializer, ChannelBudgetSerializer, OpsDailyReportSerializer,
     AnchorDailyReportSerializer, LeadLedgerSerializer, AnchorAdStatSerializer,
+    CostRecordSerializer,
 )
 
 
@@ -1041,3 +1042,24 @@ class AnchorAdStatViewSet(ScopeModelViewSet):
                 cur[k][f"{m}_rate"] = ratio(cur[k][m], pre[k][m])
         return Response({"code": 0, "msg": "ok", "data": {"date": date_str,
                                                           "current": cur, "previous": pre}})
+
+
+class CostRecordViewSet(BizScopeModelViewSet):
+    """运营成本记录（2026-11-02 Boss 指示）
+
+    数据口径：管理层（MANAGER）/老板（BOSS/超管）看全公司；员工仅看自己录入的。
+    """
+    queryset = CostRecord.objects.filter(is_deleted=False)
+    serializer_class = CostRecordSerializer
+    owner_field = "created_by"
+    scope_by_department = False
+    log_module = "运营成本录入"
+    ordering_fields = ["date", "amount", "created_at"]
+    date_field = "date"
+    search_fields = ["name", "remark"]
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.save(created_by=self.request.user)

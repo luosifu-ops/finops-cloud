@@ -1,17 +1,34 @@
 <template>
-  <BaseListView title="数据录入" baseUrl="/ops/daily-stats/" :form-fields="statForm" :can-delete="true" />
+  <div>
+    <el-tabs v-model="tab">
+      <!-- ========== 每日投放数据录入（原有功能保持，仅平台/账户/计划由手填ID改为下拉选择） ========== -->
+      <el-tab-pane label="投放数据录入" name="stats">
+        <BaseListView title="每日投放数据" baseUrl="/ops/daily-stats/" :form-fields="statForm"
+          :can-delete="true" :option-sources="statOptions" />
+      </el-tab-pane>
+
+      <!-- ========== 成本录入（2026-11-02 Boss 指示新增，与投放数据互补） ========== -->
+      <el-tab-pane label="成本录入" name="cost">
+        <BaseListView title="运营成本录入" baseUrl="/ops/cost-records/" :form-fields="costForm"
+          :can-delete="true" :option-sources="costOptions" />
+      </el-tab-pane>
+    </el-tabs>
+  </div>
 </template>
 
 <script setup>
+import { ref, onMounted } from 'vue'
 import BaseListView from '@/components/BaseListView.vue'
+import http from '@/api'
 
-// 运营部·每日投放数据：补全新增 / 编辑 / 删除（此前为只读，电销部/运营无法维护投放明细）
-// 平台/账户/计划 以 ID 维护；展示列表仍由后端 *_name 字段显示中文名称
+const tab = ref('stats')
+
+// ---------- 每日投放数据（原表单字段全部保留） ----------
 const statForm = [
   { prop: 'date', label: '投放日期', type: 'date', required: true },
-  { prop: 'platform', label: '平台ID', type: 'number', required: true },
-  { prop: 'account', label: '账户ID', type: 'number', required: true },
-  { prop: 'campaign', label: '计划ID', type: 'number' },
+  { prop: 'platform', label: '投放平台', type: 'select', required: true },
+  { prop: 'account', label: '投放账户', type: 'select' },
+  { prop: 'campaign', label: '推广计划', type: 'select' },
   { prop: 'cost', label: '花费(元)', type: 'number' },
   { prop: 'impression', label: '展现量', type: 'number' },
   { prop: 'click', label: '点击量', type: 'number' },
@@ -24,4 +41,46 @@ const statForm = [
   { prop: 'deal_amount', label: '成交金额(元)', type: 'number' },
   { prop: 'remark', label: '备注', type: 'textarea' },
 ]
+
+// ---------- 成本录入（新增） ----------
+const costForm = [
+  { prop: 'date', label: '成本日期', type: 'date', required: true },
+  { prop: 'category', label: '成本类别', type: 'select', required: true, options: [
+    { value: 'RECHARGE', label: '账户充值' },
+    { value: 'PROMO', label: '推广费' },
+    { value: 'SALARY', label: '人工成本' },
+    { value: 'TOOL', label: '工具费用' },
+    { value: 'MATERIAL', label: '物料制作' },
+    { value: 'OTHER', label: '其他' },
+  ] },
+  { prop: 'platform', label: '所属平台', type: 'select' },
+  { prop: 'name', label: '成本事项', type: 'text', placeholder: '如：7月抖音账户充值' },
+  { prop: 'amount', label: '金额(元)', type: 'number', required: true },
+  { prop: 'remark', label: '备注', type: 'textarea' },
+]
+
+// ---------- 字典下拉（平台/账户/计划），替代原「手填ID」 ----------
+const statOptions = ref({ platform: [], account: [], campaign: [] })
+const costOptions = ref({ platform: [] })
+
+async function loadDicts() {
+  try {
+    const [ps, as_, cs] = await Promise.all([
+      http.get('/ops/platforms/?page_size=200'),
+      http.get('/ops/accounts/?page_size=200').catch(() => null),
+      http.get('/ops/campaigns/?page_size=200').catch(() => null),
+    ])
+    const unwrap = (r) => (Array.isArray(r) ? r : (r?.results || []))
+    const platforms = unwrap(ps).map((p) => ({ value: p.id, label: p.name }))
+    const accounts = unwrap(as_).map((a) => ({
+      value: a.id,
+      label: a.platform_name ? `${a.platform_name} · ${a.name}` : a.name,
+    }))
+    const campaigns = unwrap(cs).map((c) => ({ value: c.id, label: c.name }))
+    statOptions.value = { platform: platforms, account: accounts, campaign: campaigns }
+    costOptions.value = { platform: platforms }
+  } catch (e) { /* 拦截器已提示 */ }
+}
+
+onMounted(loadDicts)
 </script>

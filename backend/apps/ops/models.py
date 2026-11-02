@@ -380,3 +380,35 @@ class AnchorAdStat(BaseModel):
         if self.impression:
             return round(self.click / self.impression * 100, 2)
         return 0
+
+
+class CostRecord(BaseModel):
+    """运营成本记录（2026-11-02 Boss 指示：数据录入新增「成本录入」功能）
+
+    与每日投放数据（AdDailyStat.cost=当日花费）互补：
+    记录充值、推广、人工、工具等公司经营成本，管理层/老板看全量，员工仅看自己录入的。
+    """
+    CATEGORY = [
+        ("RECHARGE", "账户充值"), ("PROMO", "推广费"), ("SALARY", "人工成本"),
+        ("TOOL", "工具费用"), ("MATERIAL", "物料制作"), ("OTHER", "其他"),
+    ]
+
+    date = models.DateField("成本日期", db_index=True)
+    category = models.CharField("成本类别", max_length=20, choices=CATEGORY, default="RECHARGE")
+    platform = models.ForeignKey(AdPlatform, on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name="cost_records", verbose_name="所属平台")
+    name = models.CharField("成本事项", max_length=200, blank=True)
+    amount = models.DecimalField("金额(元)", max_digits=12, decimal_places=2, default=0)
+    remark = models.CharField("备注", max_length=300, blank=True)
+
+    class Meta:
+        db_table = "ops_cost_record"
+        verbose_name = "运营成本记录"
+        verbose_name_plural = "运营成本记录"
+        ordering = ["-date", "-created_at"]
+
+    def category_label(self):
+        return self.get_category_display()
+
+    def __str__(self):
+        return f"{self.date}-{self.get_category_display()}-{self.amount}"
