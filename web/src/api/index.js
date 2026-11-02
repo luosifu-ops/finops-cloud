@@ -385,6 +385,11 @@ export const integrationApi = {
   // 对标账号搜索（多平台：抖音/快手/小红书/视频号）
   benchmarkPlatforms: () => http.get('/integrations/benchmark/platforms/'),
   benchmarkSearch: (params) => http.get('/integrations/benchmark/search/', { params }),
+  // 对标账号库（2026-11-02：全员可录入，库内优先检索）
+  benchmarkAccounts: (params) => http.get('/integrations/benchmark-accounts/', { params }),
+  createBenchmarkAccount: (data) => http.post('/integrations/benchmark-accounts/', data),
+  updateBenchmarkAccount: (id, data) => http.patch(`/integrations/benchmark-accounts/${id}/`, data),
+  deleteBenchmarkAccount: (id) => http.delete(`/integrations/benchmark-accounts/${id}/`),
   // 钉钉通讯录同步（仅老板/人事）
   dingtalkStatus: () => http.get('/integrations/dingtalk/status/'),
   dingtalkSync: (data) => http.post('/integrations/dingtalk/sync/', data || {})

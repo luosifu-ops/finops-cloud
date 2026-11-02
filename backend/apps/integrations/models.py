@@ -68,3 +68,38 @@ class CloudResourceConfig(BaseModel):
 
     def __str__(self):
         return f"{self.get_provider_display()}-{self.get_resource_type_display()}-{self.name}"
+
+
+class BenchmarkAccount(BaseModel):
+    """对标账号库（2026-11-02 Boss 指示：对标账号搜索不到 → 自建账号库）
+
+    运营把刷到的竞品/对标账号录入库内，全员可搜索、可查看详情。
+    platform 取值与 benchmark 演示样本一致，便于前端复用展示逻辑。
+    """
+    PLATFORM_CHOICES = [
+        ("DOUYIN", "抖音"), ("KUAISHOU", "快手"),
+        ("XIAOHONGSHU", "小红书"), ("SHIPINHAO", "视频号"),
+        ("WEIBO", "微博"), ("BILIBILI", "B站"), ("OTHER", "其他"),
+    ]
+
+    platform = models.CharField("平台", max_length=20, choices=PLATFORM_CHOICES, default="DOUYIN")
+    nickname = models.CharField("账号昵称", max_length=120)
+    account_id = models.CharField("账号ID/抖音号", max_length=120, blank=True)
+    fans = models.BigIntegerField("粉丝数", default=0)
+    likes = models.BigIntegerField("点赞数", default=0)
+    works = models.IntegerField("作品数", default=0)
+    avg_play = models.BigIntegerField("平均播放", default=0)
+    tags = models.CharField("领域标签(逗号分隔)", max_length=300, blank=True)
+    sign = models.CharField("简介/签名", max_length=500, blank=True)
+    url = models.CharField("主页链接", max_length=500, blank=True)
+    note = models.CharField("备注", max_length=300, blank=True)
+
+    class Meta:
+        db_table = "sys_benchmark_account"
+        verbose_name = "对标账号"
+        verbose_name_plural = "对标账号"
+        ordering = ["-fans", "-created_at"]
+        indexes = [models.Index(fields=["platform"]), models.Index(fields=["nickname"])]
+
+    def __str__(self):
+        return f"{self.get_platform_display()}-{self.nickname}"

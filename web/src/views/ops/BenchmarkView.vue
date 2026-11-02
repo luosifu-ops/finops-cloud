@@ -37,7 +37,49 @@
       />
       <el-button type="primary" :loading="loading" style="margin-left:14px" @click="search">查 询</el-button>
       <el-button :disabled="!list.length" @click="exportCsv">导出 CSV</el-button>
+      <el-button type="success" plain @click="openCreate">+ 录入对标账号</el-button>
+      <el-tag v-if="source === 'library'" type="success" size="small" style="margin-left:10px">对标账号库</el-tag>
+      <el-tag v-else-if="source === 'demo'" type="info" size="small" style="margin-left:10px">演示样本（库内暂无匹配，欢迎录入真实对标账号）</el-tag>
     </el-card>
+
+    <!-- 录入/编辑对标账号 -->
+    <el-dialog v-model="createVisible" :title="editingId ? '编辑对标账号' : '录入对标账号'" width="560px">
+      <el-form :model="bform" label-width="100px">
+        <el-form-item label="平台" required>
+          <el-select v-model="bform.platform" style="width:100%">
+            <el-option v-for="p in platformOptions" :key="p.value" :label="p.label" :value="p.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="账号昵称" required>
+          <el-input v-model="bform.nickname" placeholder="对标账号昵称" />
+        </el-form-item>
+        <el-form-item label="账号ID">
+          <el-input v-model="bform.account_id" placeholder="抖音号 / 账号ID" />
+        </el-form-item>
+        <el-form-item label="数据概况">
+          <el-input-number v-model="bform.fans" :min="0" controls-position="right" placeholder="粉丝" style="width:120px" />
+          <el-input-number v-model="bform.likes" :min="0" controls-position="right" placeholder="点赞" style="width:120px;margin-left:6px" />
+          <el-input-number v-model="bform.works" :min="0" controls-position="right" placeholder="作品" style="width:110px;margin-left:6px" />
+          <el-input-number v-model="bform.avg_play" :min="0" controls-position="right" placeholder="均播" style="width:120px;margin-left:6px" />
+        </el-form-item>
+        <el-form-item label="领域标签">
+          <el-input v-model="bform.tags" placeholder="多个标签用英文逗号分隔，如 财税,代账,创业" />
+        </el-form-item>
+        <el-form-item label="简介/签名">
+          <el-input v-model="bform.sign" type="textarea" :rows="2" placeholder="账号简介或签名" />
+        </el-form-item>
+        <el-form-item label="主页链接">
+          <el-input v-model="bform.url" placeholder="https://..." />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="bform.note" placeholder="选填，如：内容风格值得借鉴" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="createVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="submitCreate">{{ editingId ? '保存修改' : '提交入库' }}</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 结果区 -->
     <el-table
@@ -74,9 +116,13 @@
           <span v-if="!row.tags || !row.tags.length" class="muted">—</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="90" fixed="right">
+      <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click.stop="openDetail(row)">详情</el-button>
+          <template v-if="row.is_library">
+            <el-button link type="warning" @click.stop="openEdit(row)">编辑</el-button>
+            <el-button link type="danger" @click.stop="removeAccount(row)">删除</el-button>
+          </template>
         </template>
       </el-table-column>
     </el-table>
@@ -121,7 +167,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { integrationApi } from '@/api'
 
 const PLATFORM_FALLBACK = [
@@ -212,6 +258,59 @@ function openDetail(row) {
   current.value = row
   trend.value = Array.isArray(row.trend) ? row.trend : []
   drawer.value = true
+}
+
+// ==================== 对标账号库：录入 / 编辑 / 删除（2026-11-02） ====================
+const createVisible = ref(false)
+const saving = ref(false)
+const editingId = ref(null)
+const bform = ref({ platform: 'DOUYIN', nickname: '', account_id: '', fans: 0, likes: 0, works: 0, avg_play: 0, tags: '', sign: '', url: '', note: '' })
+
+function openCreate() {
+  editingId.value = null
+  bform.value = { platform: platform.value === 'ALL' ? 'DOUYIN' : platform.value, nickname: '', account_id: '', fans: 0, likes: 0, works: 0, avg_play: 0, tags: q.value || '', sign: '', url: '', note: '' }
+  createVisible.value = true
+}
+
+function openEdit(row) {
+  editingId.value = row.id
+  bform.value = {
+    platform: row.platform || 'DOUYIN', nickname: row.nickname || '', account_id: row.account_id || '',
+    fans: Number(row.fans || 0), likes: Number(row.likes || 0), works: Number(row.works || 0),
+    avg_play: Number(row.avg_play || 0), tags: Array.isArray(row.tags) ? row.tags.join(',') : (row.tags || ''),
+    sign: row.sign || '', url: row.url || '', note: row.note || '',
+  }
+  createVisible.value = true
+}
+
+async function submitCreate() {
+  if (!String(bform.value.nickname || '').trim()) return ElMessage.warning('请填写账号昵称')
+  saving.value = true
+  try {
+    const payload = { ...bform.value }
+    if (editingId.value) {
+      await integrationApi.updateBenchmarkAccount(editingId.value, payload)
+      ElMessage.success('已保存修改')
+    } else {
+      await integrationApi.createBenchmarkAccount(payload)
+      ElMessage.success('已入库，全员可检索')
+    }
+    createVisible.value = false
+    search()
+  } catch (e) { /* 拦截器已提示 */ } finally { saving.value = false }
+}
+
+async function removeAccount(row) {
+  try {
+    await ElMessageBox.confirm(`确认删除对标账号「${row.nickname}」？`, '删除确认', {
+      type: 'warning', confirmButtonText: '确认删除', confirmButtonClass: 'el-button--danger',
+    })
+  } catch { return }
+  try {
+    await integrationApi.deleteBenchmarkAccount(row.id)
+    ElMessage.success('已删除')
+    search()
+  } catch (e) { /* 拦截器已提示 */ }
 }
 
 function openPortal(url) { if (url) window.open(url, '_blank') }

@@ -73,7 +73,8 @@ def leads_scope_all(user):
     """
     if not user or not user.is_authenticated:
         return False
-    if user.is_superuser or getattr(user, "role", None) == "BOSS":
+    # 2026-11-02 Boss 指示：管理层（MANAGER）与老板（BOSS/超管）可看全部线索数据
+    if user.is_superuser or getattr(user, "role", None) in ("BOSS", "MANAGER"):
         return True
     r = growth_role_of(user)
     return bool(r and r.can_view_all)

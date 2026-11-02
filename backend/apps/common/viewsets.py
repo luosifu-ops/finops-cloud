@@ -73,7 +73,9 @@ class ScopeModelViewSet(viewsets.ModelViewSet):
     def _scoped_qs(self, qs, user):
         """按当前账号角色返回收窄后的 queryset"""
         if self.scope_profile == "biz":
-            see_all = is_boss(user)
+            # 2026-11-02 Boss 指示：管理层（MANAGER）与老板（BOSS/超管）看全公司数据；
+            # 其余账号仅看自己录入 / 分派到的（含小组口径的组长）
+            see_all = is_boss(user) or getattr(user, "role", "") == "MANAGER"
             ids_fn = biz_user_ids
         else:
             see_all = is_hr_scope(user)

@@ -471,6 +471,7 @@ BENCHMARK_PLATFORMS = [
 ]
 
 _PLATFORM_LABEL = {p["value"]: p["label"] for p in BENCHMARK_PLATFORMS}
+PLATFORM_LABELS = dict(_PLATFORM_LABEL)  # 公开别名（viewsets / 序列化使用）
 
 BENCHMARK_SAMPLE = [
     # ---------------- 抖音（优先适配）----------------
@@ -594,6 +595,51 @@ def benchmark_search(q="", platform="ALL", sort="fans", fan_level=""):
     q = (q or "").strip().lower()
     platform = (platform or "ALL").upper()
 
+    # ---------- 优先：公司自建对标账号库（2026-11-02 Boss 指示） ----------
+    # 运营录入的真实对标账号；库内有匹配结果时直接返回（source=library）
+    from .models import BenchmarkAccount
+    from django.db.models import Q
+
+    lib_qs = BenchmarkAccount.objects.filter(is_deleted=False)
+    if platform and platform != "ALL":
+        lib_qs = lib_qs.filter(platform=platform)
+    if q:
+        lib_qs = lib_qs.filter(
+            Q(nickname__icontains=q) | Q(account_id__icontains=q)
+            | Q(tags__icontains=q) | Q(sign__icontains=q)
+        )
+    if fan_level:
+        bound = _fan_level(fan_level)
+        if bound:
+            low, high = bound
+            lib_qs = lib_qs.filter(fans__gte=low, fans__lt=high)
+
+    lib_items = []
+    for idx, acc in enumerate(lib_qs[:200], start=1):
+        lib_items.append({
+            "id": f"L{acc.id}",
+            "platform": acc.platform,
+            "platform_label": PLATFORM_LABELS.get(acc.platform, acc.platform),
+            "nickname": acc.nickname,
+            "account_id": acc.account_id,
+            "fans": acc.fans,
+            "likes": acc.likes,
+            "works": acc.works,
+            "avg_play": acc.avg_play,
+            "tags": [t.strip() for t in (acc.tags or "").split(",") if t.strip()],
+            "sign": acc.sign or "",
+            "url": acc.url or "",
+            "trend": [],   # 库内账号无趋势演示数据
+            "note": acc.note or "",
+            "is_library": True,
+        })
+
+    if lib_items:
+        sort_key = sort if sort in ("fans", "likes", "works", "avg_play") else "fans"
+        lib_items.sort(key=lambda i: -i.get(sort_key, 0))
+        return {"total": len(lib_items), "source": "library", "list": lib_items}
+
+    # ---------- 回落：演示样本（库内无匹配时） ----------
     items = []
     for idx, raw in enumerate(BENCHMARK_SAMPLE, start=1):
         item = dict(raw)
@@ -633,4 +679,5 @@ def benchmark_search(q="", platform="ALL", sort="fans", fan_level=""):
         "total": len(items),
         "source": "demo" if not _has_key("DOUYIN_API_KEY") else "live",
         "list": items,
+        "hint": "库内暂无匹配的对标账号，以下为演示样本；可在本页录入真实对标账号供全员检索",
     }

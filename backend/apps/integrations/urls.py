@@ -17,3 +17,11 @@ urlpatterns = [
     path("dingtalk/status/", views.dingtalk_status, name="dingtalk-status"),
     path("dingtalk/sync/", views.dingtalk_sync, name="dingtalk-sync"),
 ]
+
+# --- 对标账号库（2026-11-02 Boss 指示：自建账号库，全员可录入可检索） ---
+from rest_framework.routers import DefaultRouter
+from .viewsets import BenchmarkAccountViewSet
+
+benchmark_router = DefaultRouter()
+benchmark_router.register("benchmark-accounts", BenchmarkAccountViewSet, basename="benchmark-account")
+urlpatterns += [path("", include(benchmark_router.urls))]
