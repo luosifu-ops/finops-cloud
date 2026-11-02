@@ -61,8 +61,9 @@ const routes = [
       { path: 'ops/dashboard', name: 'ops-dashboard', component: () => import('@/views/ops/OpsDashboardView.vue'), meta: { title: '投放总览', group: '运营部', icon: 'DataBoard', dept: 'OPS' } },
       { path: 'ops/budget', name: 'ops-budget', component: () => import('@/views/ops/BudgetView.vue'), meta: { title: '预算管理', group: '运营部', icon: 'Money', dept: 'OPS' } },
       { path: 'ops/input', name: 'ops-input', component: () => import('@/views/ops/DataInputView.vue'), meta: { title: '数据录入', group: '运营部', icon: 'Upload', dept: 'OPS' } },
-      { path: 'ops/compare', name: 'ops-compare', component: () => import('@/views/ops/CompareView.vue'), meta: { title: '平台对比', group: '运营部', icon: 'Histogram', dept: 'OPS' } },
+      // 2026-10-30 Boss 指示：线索池 移到 数据录入 之后
       { path: 'ops/leads', name: 'ops-leads', component: () => import('@/views/growth/LeadWorkbenchView.vue'), meta: { title: '线索池', group: '运营部', icon: 'Connection', dept: 'OPS' } },
+      { path: 'ops/compare', name: 'ops-compare', component: () => import('@/views/ops/CompareView.vue'), meta: { title: '平台对比', group: '运营部', icon: 'Histogram', dept: 'OPS' } },
       { path: 'ops/funnel', name: 'ops-funnel', component: () => import('@/views/ops/FunnelView.vue'), meta: { title: '转化漏斗', group: '运营部', icon: 'Filter', dept: 'OPS' } },
       { path: 'ops/content', name: 'ops-content', component: () => import('@/views/ops/ContentView.vue'), meta: { title: '内容运营', group: '运营部', icon: 'Picture', dept: 'OPS' } },
       { path: 'ops/anchors', name: 'ops-anchors', component: () => import('@/views/ops/AnchorView.vue'), meta: { title: '主播管理', group: '运营部', icon: 'Microphone', dept: 'OPS' } },

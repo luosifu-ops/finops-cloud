@@ -35,6 +35,7 @@
         <el-button v-if="!readOnly && effectiveFormFields.length" type="primary" @click="openCreate">
           新 增
         </el-button>
+        <!-- 2026-10-30 Boss 专项：批量按钮永远可点，未勾选时点击给出引导提示（不再置灰） -->
         <el-button v-if="!readOnly && canDelete" type="danger" plain @click="bulkRemove">
           批量删除{{ selected.length ? `(${selected.length})` : '' }}
         </el-button>
@@ -101,7 +102,9 @@
             value-format="YYYY-MM-DD"
             style="width: 100%"
           />
-          <el-select v-else-if="f.type === 'select'" v-model="form[f.prop]" clearable filterable style="width: 100%">
+          <!-- 2026-10-30 Boss 专项：全站表单下拉支持 选择 + 手动输入新增（allow-create） -->
+          <el-select v-else-if="f.type === 'select'" v-model="form[f.prop]" clearable filterable
+                     allow-create default-first-option style="width: 100%">
             <el-option v-for="o in (optionSources[f.prop] || f.options || [])" :key="o.value" :label="o.label" :value="o.value" />
           </el-select>
           <el-switch v-else-if="f.type === 'switch'" v-model="form[f.prop]" />
@@ -185,12 +188,8 @@ function onDateChange(v) {
 }
 
 // —— 批量删除（全局规则1：走后端 bulk-delete 软删 + 操作日志）——
-// 2026-10-31 改进：去掉 disabled 死按钮，未勾选时点击直接提示（避免"点不动"困惑）
 async function bulkRemove() {
-  if (!selected.value.length) {
-    ElMessage.warning('请先勾选要删除的记录（表格左侧复选框）')
-    return
-  }
+  if (!selected.value.length) { ElMessage.warning('请先勾选要删除的行（点击表格左侧复选框）'); return }
   try {
     await ElMessageBox.confirm(`确认删除选中的 ${selected.value.length} 条记录？删除后可在离职数据中恢复。`, '批量删除', { type: 'warning' })
   } catch { return }

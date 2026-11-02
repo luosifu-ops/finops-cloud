@@ -34,7 +34,8 @@
         <div class="card-header">
           <span>线索工作台 · 多平台录入与全链路流转</span>
           <div>
-            <el-button v-if="canManage" type="warning" plain :disabled="!selected.length"
+            <!-- 2026-10-30 Boss 专项：批量按钮永远可点，未勾选时点击给出引导提示（不再置灰） -->
+            <el-button v-if="canManage" type="warning" plain
               @click="openBulkAssign">批量分配{{ selected.length ? `(${selected.length})` : '' }}</el-button>
             <el-button v-if="canCreateLead" type="primary" @click="openCreate">+ 录入线索</el-button>
             <el-button @click="goPool">公海 →</el-button>
@@ -337,7 +338,7 @@ const bulkVisible = ref(false)
 const bulkAssigning = ref(false)
 const bulkForm = reactive({ owner_id: null, closer_id: null, remark: '' })
 function openBulkAssign() {
-  if (!selected.value.length) return
+  if (!selected.value.length) { ElMessage.warning('请先勾选要分配的线索（点击表格左侧复选框）'); return }
   Object.assign(bulkForm, { owner_id: null, closer_id: null, remark: '' })
   bulkVisible.value = true
 }

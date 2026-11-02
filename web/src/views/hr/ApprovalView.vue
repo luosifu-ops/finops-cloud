@@ -15,12 +15,12 @@
         @click="handle(row, 'reject')"
       >驳回</el-button>
     </template>
-    <!-- 2026-10-30 增量：批量通过 / 批量驳回（选中后可点，未选中置灰） -->
+    <!-- 2026-10-30 增量：批量通过 / 批量驳回（Boss 专项：按钮永远可点，未勾选时点击给出引导提示） -->
     <template #header-extra>
-      <el-button type="success" plain :disabled="!sel.length" @click="bulkHandle('approve')">
+      <el-button type="success" plain @click="bulkHandle('approve')">
         批量通过{{ sel.length ? `(${sel.length})` : '' }}
       </el-button>
-      <el-button type="danger" plain :disabled="!sel.length" @click="bulkHandle('reject')">
+      <el-button type="danger" plain @click="bulkHandle('reject')">
         批量驳回{{ sel.length ? `(${sel.length})` : '' }}
       </el-button>
     </template>
