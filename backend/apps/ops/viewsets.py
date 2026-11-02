@@ -270,6 +270,7 @@ class AdDailyStatViewSet(BizScopeModelViewSet):
             campaign = resolve_instance(AdCampaign, item.get("campaign"))
             defaults = {
                 "cost": item.get("cost", 0),
+                "cost_input": item.get("cost_input", 0),
                 "impression": to_int(item.get("impression")),
                 "click": to_int(item.get("click")),
                 "lead_count": to_int(item.get("lead_count")),

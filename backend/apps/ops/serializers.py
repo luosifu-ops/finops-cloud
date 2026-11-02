@@ -64,7 +64,7 @@ class AdDailyStatSerializer(serializers.ModelSerializer):
         model = AdDailyStat
         fields = ["id", "platform", "platform_name", "account", "account_name",
                   "campaign", "campaign_name", "date", "cost", "impression", "click",
-                  "click_rate", "avg_click_cost", "lead_count", "valid_lead",
+                  "cost_input", "click_rate", "avg_click_cost", "lead_count", "valid_lead",
                   "phone_added", "wechat_added", "visit_count", "deal_count", "deal_amount",
                   "cpl", "cac", "roi", "lead_valid_rate",
                   "operator", "operator_name", "remark", "created_at"]

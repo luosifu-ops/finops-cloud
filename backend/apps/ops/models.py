@@ -85,6 +85,7 @@ class AdDailyStat(models.Model):
     date = models.DateField("日期", db_index=True)
 
     cost = models.DecimalField("消耗(元)", max_digits=12, decimal_places=2, default=0)
+    cost_input = models.DecimalField("成本(元)", max_digits=12, decimal_places=2, default=0)
     impression = models.IntegerField("展现量", default=0)
     click = models.IntegerField("点击量", default=0)
     click_rate = models.DecimalField("点击率(%)", max_digits=6, decimal_places=2, default=0)
