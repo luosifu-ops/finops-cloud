@@ -98,11 +98,23 @@
             <span v-else class="muted">未标记</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" :width="isOpsPool ? 470 : 360" fixed="right">
+        <!-- 2026-11-02 Boss 指示：成交师可见——成交后显示承接成交的人 -->
+        <el-table-column label="成交师" width="140">
+          <template #default="{ row }">
+            <template v-if="row.is_deal">
+              <el-tag type="success" size="small">已成交</el-tag>
+              <span class="closer-name">{{ row.closer_name || '-' }}</span>
+            </template>
+            <span v-else class="muted">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" :width="isOpsPool ? 520 : 410" fixed="right">
           <template #default="{ row }">
             <el-button v-if="canManage" link type="danger" @click="openAssign(row)">分配</el-button>
             <el-button v-if="canModifyLead(row)" link type="primary" @click="openEdit(row)">编辑</el-button>
             <el-button link type="primary" @click="openStage(row)">标记阶段</el-button>
+            <!-- 2026-11-02 Boss 指示：跟进记录查看/编辑（时间线 + 新增） -->
+            <el-button link type="primary" @click="openFollowups(row)">跟进</el-button>
             <el-button link type="success" @click="doAccept(row)">承接</el-button>
             <el-button link type="warning" @click="doReturn(row)">退公海</el-button>
             <el-button link @click="openFlows(row)">流转</el-button>
@@ -296,6 +308,74 @@
         <el-button type="primary" :loading="bulkAssigning" @click="submitBulkAssign">确认批量分配</el-button>
       </template>
     </el-dialog>
+
+    <!-- 2026-11-02 Boss 指示：跟进记录抽屉（时间线查看 + 新增/编辑，管理层可见全过程） -->
+    <el-drawer v-model="fupVisible" :title="`跟进记录 · ${fupRow?.lead_name || ''}`" size="560px">
+      <div class="fup-wrap">
+        <el-alert type="info" :closable="false" show-icon
+          :title="`当前阶段：${fupRow?.stage_label || '未标记'}　承接人：${fupRow?.closer_name || '公海待领'}　状态：${statusLabel(fupRow?.lead_status)}`" />
+        <el-timeline v-loading="fupLoading" class="fup-timeline">
+          <el-timeline-item v-for="f in fups" :key="f.id"
+            :timestamp="`${f.follow_at || f.created_at} · ${f.way_label}`" placement="top"
+            :type="f.deal_happened ? 'success' : 'primary'">
+            <div class="fup-item">
+              <div class="fup-head">
+                <b>{{ f.round_label }}</b>
+                <el-tag v-if="f.deal_happened" type="success" size="small">本次成交 ¥{{ f.deal_amount }}</el-tag>
+                <span class="fup-ops">
+                  <el-button link type="primary" size="small" @click="editFollowup(f)">编辑</el-button>
+                  <el-button v-if="canModifyLead(fupRow)" link type="danger" size="small" @click="removeFollowup(f)">删除</el-button>
+                </span>
+              </div>
+              <div class="fup-content">{{ f.content }}</div>
+            </div>
+          </el-timeline-item>
+          <el-empty v-if="!fupLoading && !fups.length" description="暂无跟进记录，录入第一条" :image-size="80" />
+        </el-timeline>
+
+        <el-divider content-position="left">{{ fupEditingId ? '编辑本次跟进' : '新增跟进记录' }}</el-divider>
+        <el-form label-width="86px" class="fup-form">
+          <el-form-item label="跟进轮次">
+            <el-select v-model="fupForm.round_no" style="width: 100%">
+              <el-option label="第一次跟进" :value="1" />
+              <el-option label="第二次跟进" :value="2" />
+              <el-option label="第三次跟进" :value="3" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="跟进方式">
+            <el-radio-group v-model="fupForm.way">
+              <el-radio-button value="PHONE">打电话</el-radio-button>
+              <el-radio-button value="WECHAT">加微信/回访</el-radio-button>
+              <el-radio-button value="VISIT">上门</el-radio-button>
+              <el-radio-button value="MEETING">会议</el-radio-button>
+              <el-radio-button value="OTHER">其他</el-radio-button>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="跟进时间">
+            <el-date-picker v-model="fupForm.follow_at" type="datetime" style="width: 100%"
+              value-format="YYYY-MM-DDTHH:mm:ss" placeholder="默认当前时间" />
+          </el-form-item>
+          <el-form-item label="跟进内容" required>
+            <el-input v-model="fupForm.content" type="textarea" :rows="3"
+              placeholder="如：今天电话回访，客户对代理记账业务感兴趣，约定下周发报价" />
+          </el-form-item>
+          <el-form-item label="是否成交">
+            <el-checkbox v-model="fupForm.deal_happened">本次跟进已成交</el-checkbox>
+          </el-form-item>
+          <el-form-item v-if="fupForm.deal_happened" label="签单金额">
+            <el-input-number v-model="fupForm.deal_amount" :min="0" :controls="false"
+              placeholder="直接输入数字" style="width: 180px" />
+            <span class="fup-amount-unit">元（成交后线索自动标记为已成交，成交师=承接人）</span>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="fupSaving" @click="saveFollowup">
+              {{ fupEditingId ? '保存修改' : '保存跟进记录' }}
+            </el-button>
+            <el-button v-if="fupEditingId" @click="resetFollowupForm">取消编辑</el-button>
+          </el-form-item>
+        </el-form>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
@@ -630,6 +710,88 @@ async function submitAssign() {
 watch(canManage, (v) => { if (v && !opsUsers.value.length && !closerUsers.value.length) loadAssignUsers() },
   { immediate: true })
 
+// ---------- 2026-11-02 Boss 指示：跟进记录（查看/新增/编辑/删除）+ 成交师 ----------
+const fupVisible = ref(false)
+const fupRow = ref(null)
+const fups = ref([])
+const fupLoading = ref(false)
+const fupSaving = ref(false)
+const fupEditingId = ref(null)
+const fupForm = reactive({
+  round_no: 1, way: 'PHONE', follow_at: '', content: '',
+  deal_happened: false, deal_amount: 0,
+})
+
+const LEAD_STATUS_LABELS = {
+  NEW: '待分配', ASSIGNED: '已分配', FOLLOWING: '跟进中', INTENTION: '高意向',
+  DEAL: '已成交', LOST: '已流失', INVALID: '无效',
+}
+const statusLabel = (s) => LEAD_STATUS_LABELS[s] || s || '-'
+
+async function openFollowups(row) {
+  fupRow.value = row
+  fupVisible.value = true
+  fupLoading.value = true
+  fupEditingId.value = null
+  try {
+    const res = await growthApi.followups({ lead_ext: row.id, page_size: 50 })
+    fups.value = Array.isArray(res) ? res : (res.results || [])
+  } catch { fups.value = [] } finally { fupLoading.value = false }
+  resetFollowupForm()
+}
+
+function resetFollowupForm() {
+  fupEditingId.value = null
+  fupForm.round_no = fups.value.length ? Math.min(fups.value.length + 1, 3) : 1
+  fupForm.way = 'PHONE'
+  fupForm.follow_at = ''
+  fupForm.content = ''
+  fupForm.deal_happened = false
+  fupForm.deal_amount = 0
+}
+
+function editFollowup(f) {
+  fupEditingId.value = f.id
+  fupForm.round_no = f.round_no
+  fupForm.way = f.way
+  fupForm.follow_at = f.follow_at || ''
+  fupForm.content = f.content
+  fupForm.deal_happened = !!f.deal_happened
+  fupForm.deal_amount = Number(f.deal_amount || 0)
+}
+
+async function saveFollowup() {
+  if (!fupForm.content.trim()) { ElMessage.warning('请填写跟进内容'); return }
+  fupSaving.value = true
+  try {
+    const payload = {
+      lead_ext: fupRow.value.id,
+      round_no: fupForm.round_no,
+      way: fupForm.way,
+      content: fupForm.content.trim(),
+      follow_at: fupForm.follow_at || new Date().toISOString(),
+      deal_happened: fupForm.deal_happened,
+      deal_amount: fupForm.deal_happened ? (fupForm.deal_amount || 0) : 0,
+    }
+    if (fupEditingId.value) {
+      await growthApi.updateFollowup(fupEditingId.value, payload)
+      ElMessage.success('跟进记录已更新')
+    } else {
+      await growthApi.createFollowup(payload)
+      ElMessage.success('跟进记录已保存')
+    }
+    await openFollowups(fupRow.value)
+    loadData()
+  } finally { fupSaving.value = false }
+}
+
+async function removeFollowup(f) {
+  try { await ElMessageBox.confirm('确认删除这条跟进记录？', '删除确认', { type: 'warning' }) } catch { return }
+  await growthApi.deleteFollowup(f.id)
+  ElMessage.success('已删除')
+  await openFollowups(fupRow.value)
+}
+
 onMounted(() => {
   loadChannels()
   loadRole()
@@ -651,4 +813,13 @@ onMounted(() => {
 .filter-bar { margin-bottom: 8px; }
 .muted { color: #909399; }
 .opt-dept { float: right; color: #a8abb2; font-size: 12px; }
+/* 2026-11-02 跟进记录抽屉 */
+.fup-wrap { padding: 0 4px; }
+.fup-timeline { margin-top: 14px; padding-left: 4px; }
+.fup-item .fup-head { display: flex; align-items: center; gap: 8px; }
+.fup-item .fup-ops { margin-left: auto; }
+.fup-item .fup-content { margin-top: 4px; white-space: pre-wrap; color: #303133; line-height: 1.6; }
+.fup-form { margin-top: 4px; }
+.fup-amount-unit { margin-left: 8px; color: #909399; font-size: 12px; }
+.closer-name { margin-left: 6px; color: #67c23a; font-weight: 600; }
 </style>

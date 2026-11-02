@@ -106,9 +106,11 @@ export const growthApi = {
   }),
 
   // ---------- 线索多次跟进（第一次 / 二次 / 三次）----------
-  followups: (params) => http.get(`${G}/followups/`, { params }),
-  createFollowup: (data) => http.post(`${G}/followups/`, data),
-  updateFollowup: (id, data) => http.patch(`${G}/followups/${id}/`, data),
+followups: (params) => http.get(`${G}/followups/`, { params }),
+createFollowup: (data) => http.post(`${G}/followups/`, data),
+updateFollowup: (id, data) => http.patch(`${G}/followups/${id}/`, data),
+// 2026-11-02 增量：跟进记录删除（软删，is_deleted）
+deleteFollowup: (id) => http.delete(`${G}/followups/${id}/`),
 
   // ---------- 外勤精细化进度节点 ----------
   fieldNodes: (params) => http.get(`${G}/field-nodes/`, { params }),
