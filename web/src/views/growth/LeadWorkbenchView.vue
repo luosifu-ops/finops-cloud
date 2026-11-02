@@ -70,6 +70,12 @@
         <el-table-column v-if="canManage" type="selection" width="42" fixed="left" />
         <el-table-column prop="lead_name" label="客户" min-width="120" />
         <el-table-column prop="lead_phone" label="电话" width="130" />
+        <!-- 2026-11-02 Boss 指示：显示录入日期（后端 created_at = 实际录入时间，存量线索自带） -->
+        <el-table-column label="录入日期" width="150">
+          <template #default="{ row }">
+            <span>{{ (row.created_at || '').slice(0, 16) }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="来源平台" width="110">
           <template #default="{ row }">
             <el-tag size="small">{{ row.channel_name }}</el-tag>
