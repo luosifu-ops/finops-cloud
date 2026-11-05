@@ -41,24 +41,47 @@
             <span v-else class="muted">未标记</span>
           </template>
         </el-table-column>
-        <el-table-column prop="customer_need" label="客户需求" min-width="160" show-overflow-tooltip />
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column prop="customer_need" label="客户需求" min-width="160" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="row.customer_need">{{ row.customer_need }}</span>
+            <span v-else class="muted">未填写（点右侧编辑）</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="270" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openFollowups(row)">跟进记录</el-button>
             <el-button link type="success" @click="openStage(row)">标记阶段</el-button>
+            <el-button link type="warning" @click="openNeed(row)">编辑需求</el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <!-- 标记阶段 -->
-    <el-dialog v-model="stageVisible" title="标记 3570 阶段" width="360px">
+    <!-- 标记 / 修改阶段（2026-11-05 Boss 指示：标错了可以改） -->
+    <el-dialog v-model="stageVisible" :title="stageRow?.stage_3570 ? '修改 3570 阶段' : '标记 3570 阶段'" width="360px">
+      <el-alert type="info" :closable="false" show-icon style="margin-bottom: 12px"
+                :title="`当前阶段：${stageRow?.stage_label || '未标记'}，标错了直接重新选一个再确认即可，系统保留变更记录`" />
       <el-radio-group v-model="stageForm.stage">
         <el-radio-button v-for="(label, val) in STAGE_3570" :key="val" :value="val">{{ label }}</el-radio-button>
       </el-radio-group>
       <template #footer>
         <el-button @click="stageVisible = false">取消</el-button>
-        <el-button type="primary" :loading="stageSaving" @click="submitStage">确认</el-button>
+        <el-button type="primary" :loading="stageSaving" @click="submitStage">确认修改</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 客户需求编辑（2026-11-05 Boss 指示：需求列原来只读，现支持修改） -->
+    <el-dialog v-model="needVisible" title="编辑客户需求" width="480px">
+      <el-form label-width="80px">
+        <el-form-item label="客户">{{ needRow?.lead_name }}</el-form-item>
+        <el-form-item label="客户需求">
+          <el-input v-model="needForm.customer_need" type="textarea" :rows="4"
+                    placeholder="填写客户的具体需求，如：注册公司 / 代理记账 / 注销等" maxlength="500" show-word-limit />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="needVisible = false">取消</el-button>
+        <el-button type="primary" :loading="needSaving" @click="submitNeed">保存需求</el-button>
       </template>
     </el-dialog>
 
@@ -187,6 +210,28 @@ async function submitStage() {
     stageVisible.value = false
     loadData()
   } catch (e) { /* 拦截器已提示 */ } finally { stageSaving.value = false }
+}
+
+// ---------- 客户需求编辑（2026-11-05 Boss 指示） ----------
+const needVisible = ref(false)
+const needSaving = ref(false)
+const needRow = ref(null)
+const needForm = reactive({ customer_need: '' })
+
+function openNeed(row) {
+  needRow.value = row
+  needForm.customer_need = row.customer_need || ''
+  needVisible.value = true
+}
+
+async function submitNeed() {
+  needSaving.value = true
+  try {
+    await growthApi.updateLead(needRow.value.id, { customer_need: needForm.customer_need })
+    ElMessage.success('客户需求已保存')
+    needVisible.value = false
+    loadData()
+  } catch (e) { /* 拦截器已提示 */ } finally { needSaving.value = false }
 }
 
 // ---------- 跟进记录（查看 + 新增） ----------
