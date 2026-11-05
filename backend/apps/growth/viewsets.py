@@ -32,7 +32,7 @@ from .serializers import (
 from .permissions import (
     can_view_all, leads_scope_all, dept_scope_ids, scope_leads, scope_field_tasks, scope_projects,
     IsGrowthAdmin, IsOpsOrAdmin, IsCloserOrAdmin, IsFieldOrAdmin,
-    IsFieldManagerOrAdmin, is_field_manager,
+    IsFieldManagerOrAdmin, is_field_manager, IsGrowthAssigner,
 )
 
 # 旧 Lead.SOURCE 的合法枚举（新平台落 OTHER，保证旧模块不受影响）
@@ -134,13 +134,21 @@ class LeadExtViewSet(viewsets.ModelViewSet):
             qs = qs.filter(in_pool=True)
         if p.get("closer"):
             qs = qs.filter(closer_id=p["closer"])
+        # 2026-11-03 Boss 指示：线索池承接状态筛选（待承接 / 已承接）
+        closing = p.get("closing")
+        if closing == "waiting":
+            qs = qs.filter(closer__isnull=True)
+        elif closing == "closed":
+            qs = qs.filter(closer__isnull=False)
         return qs.order_by("-created_at")
 
     # ---------- 录入（运营） ----------
     @transaction.atomic
     def create(self, request, *args, **kwargs):
-        """运营录入线索 → 自动流转至成交师
+        """运营录入线索 → 进入待承接流程
 
+        2026-11-05 起新流程：录入后线索进入公海待承接（除非显式指定 closer），
+        由管理层手动分配或成交师自行领取，系统不再自动派单。
         必填：来源平台 / 来源账号编号 / 客户联系方式 / 归属运营人（自动=当前登录人）
         """
         ser = LeadExtCreateSerializer(data=request.data)
@@ -161,8 +169,10 @@ class LeadExtViewSet(viewsets.ModelViewSet):
         if closer_id:
             from apps.accounts.models import User
             closer = User.objects.filter(id=closer_id).first()
-        if closer is None:
-            closer = _auto_pick_closer(channel)   # 按平台专项分配
+        # 2026-11-05 Boss 指示：录入时【不再自动派单】给成交师！
+        # 原逻辑 _auto_pick_closer 会在管理层未分配的情况下直接把线索压给成交师，
+        # 现改为：仅当录入时显式指定 closer 才直接分配；否则一律进入公海待承接，
+        # 由管理层「分配」或成交师自行「领取」完成承接。
 
         # 1) 在原 Lead 表新增一条记录（不改动 Lead 任何结构）
         lead = Lead.objects.create(
@@ -201,7 +211,7 @@ class LeadExtViewSet(viewsets.ModelViewSet):
         if closer:
             LeadFlow.objects.create(
                 lead_ext=ext, action="AUTO_ASSIGN", from_user=user, to_user=closer,
-                remark="系统自动流转（按负载）", created_by=user)
+                remark="录入时指定承接人，直接分配", created_by=user)
         else:
             LeadPool.objects.create(
                 lead_ext=ext, status="WAITING",
@@ -403,7 +413,8 @@ class LeadExtViewSet(viewsets.ModelViewSet):
         return Response({"detail": "已转派", "id": ext.id})
 
     # ---------- 管理层分配（手动指派运营/成交师） ----------
-    @action(detail=True, methods=["post"], permission_classes=[IsGrowthAdmin])
+    # 2026-11-03：权限放宽为「增长管理员 或 单点授权 can_assign_leads」（Boss 指示）
+    @action(detail=True, methods=["post"], permission_classes=[IsGrowthAssigner])
     def assign(self, request, pk=None):
         """管理层手动分配线索给某运营 / 成交师（仅管理层 can_view_all 可调）
 
@@ -469,7 +480,8 @@ class LeadExtViewSet(viewsets.ModelViewSet):
         })
 
     # ---------- 批量分配（Boss 2026-10-29：线索批量分配专项） ----------
-    @action(detail=False, methods=["post"], url_path="bulk-assign", permission_classes=[IsGrowthAdmin])
+    # 2026-11-03：权限放宽为「增长管理员 或 单点授权 can_assign_leads」
+    @action(detail=False, methods=["post"], url_path="bulk-assign", permission_classes=[IsGrowthAssigner])
     def bulk_assign(self, request):
         """批量分配线索：{"ids": [...], "owner_id": x, "closer_id": y, "remark": "..."}
         owner_id / closer_id 至少一项；逐条复用单条 assign 逻辑并写 LeadFlow 留痕。"""
@@ -1224,13 +1236,18 @@ class GrowthRoleViewSet(viewsets.ModelViewSet):
             permission_classes=[permissions.IsAuthenticated])
     def me(self, request):
         """当前登录人的增长中心角色（任何登录用户可看自己的）"""
+        # 2026-11-03：附带单点授权 can_assign_leads，供前端「分配」按钮显隐
+        from apps.common.permissions import can_assign_leads as _can_assign_leads
+        _assign = _can_assign_leads(request.user)
         r = getattr(request.user, "growth_role", None)
         if not r:
-            return Response({"has_role": False, "can_view_all": can_view_all(request.user)})
+            return Response({"has_role": False, "can_view_all": can_view_all(request.user),
+                             "can_assign_leads": _assign})
         return Response({
             "has_role": True,
             "role": r.role,
             "role_label": r.get_role_display(),
             "dept_key": r.dept_key,
             "can_view_all": can_view_all(request.user),
+            "can_assign_leads": _assign,
         })

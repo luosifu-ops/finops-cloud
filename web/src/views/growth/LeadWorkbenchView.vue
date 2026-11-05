@@ -35,7 +35,8 @@
           <span>线索工作台 · 多平台录入与全链路流转</span>
           <div>
             <!-- 2026-10-30 Boss 专项：批量按钮永远可点，未勾选时点击给出引导提示（不再置灰） -->
-            <el-button v-if="canManage" type="warning" plain
+            <!-- 2026-11-03：分配入口改由 canAssign 控制（管理层 或 单点授权 can_assign_leads） -->
+            <el-button v-if="canAssign" type="warning" plain
               @click="openBulkAssign">批量分配{{ selected.length ? `(${selected.length})` : '' }}</el-button>
             <el-button v-if="canCreateLead" type="primary" @click="openCreate">+ 录入线索</el-button>
             <el-button @click="goPool">公海 →</el-button>
@@ -46,6 +47,13 @@
 
       <!-- 筛选 -->
       <el-form :inline="true" size="default" class="filter-bar">
+        <!-- 2026-11-03 Boss 指示：承接状态筛选（待承接 / 已承接） -->
+        <el-form-item label="承接状态">
+          <el-select v-model="filters.closing" placeholder="全部" clearable style="width:120px">
+            <el-option label="待承接" value="waiting" />
+            <el-option label="已承接" value="closed" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="平台">
           <el-select v-model="filters.channel" placeholder="全部平台" clearable style="width:140px">
             <el-option v-for="c in channels" :key="c.id" :label="c.name" :value="c.id" />
@@ -67,13 +75,20 @@
       <!-- 表格 -->
       <el-table :data="list" v-loading="loading" border stripe size="default"
         @selection-change="(rows) => (selected = rows)">
-        <el-table-column v-if="canManage" type="selection" width="42" fixed="left" />
+        <el-table-column v-if="canAssign" type="selection" width="42" fixed="left" />
         <el-table-column prop="lead_name" label="客户" min-width="120" />
         <el-table-column prop="lead_phone" label="电话" width="130" />
         <!-- 2026-11-02 Boss 指示：显示录入日期（后端 created_at = 实际录入时间，存量线索自带） -->
         <el-table-column label="录入日期" width="150">
           <template #default="{ row }">
             <span>{{ (row.created_at || '').slice(0, 16) }}</span>
+          </template>
+        </el-table-column>
+        <!-- 2026-11-03 Boss 指示：线索池增加「录入人」列 -->
+        <el-table-column label="录入人" width="100">
+          <template #default="{ row }">
+            <span v-if="row.creator_name">{{ row.creator_name }}</span>
+            <span v-else class="muted">—</span>
           </template>
         </el-table-column>
         <el-table-column label="来源平台" width="110">
@@ -86,7 +101,7 @@
         <el-table-column prop="closer_name" label="承接人" width="110">
           <template #default="{ row }">
             <span v-if="row.closer_name">{{ row.closer_name }}</span>
-            <el-tag v-else-if="row.in_pool" type="warning" size="small">公海待领</el-tag>
+            <el-tag v-else-if="row.in_pool" type="warning" size="small">公海待承接</el-tag>
             <span v-else>-</span>
           </template>
         </el-table-column>
@@ -110,7 +125,7 @@
         </el-table-column>
         <el-table-column label="操作" :width="isOpsPool ? 520 : 410" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="canManage" link type="danger" @click="openAssign(row)">分配</el-button>
+            <el-button v-if="canAssign" link type="danger" @click="openAssign(row)">分配</el-button>
             <el-button v-if="canModifyLead(row)" link type="primary" @click="openEdit(row)">编辑</el-button>
             <el-button link type="primary" @click="openStage(row)">标记阶段</el-button>
             <!-- 2026-11-02 Boss 指示：跟进记录查看/编辑（时间线 + 新增） -->
@@ -156,7 +171,7 @@
           <el-input v-model="form.remark" type="textarea" :rows="2" />
         </el-form-item>
         <el-alert type="info" :closable="false" show-icon
-                  title="提交后系统按成交师负载自动流转；若无可用成交师则自动进入公海" />
+                  title="提交后线索进入公海待承接，由管理层分配或成交师自行领取（系统不再自动派单）" />
       </el-form>
       <template #footer>
         <el-button @click="createVisible = false">取消</el-button>
@@ -313,7 +328,7 @@
     <el-drawer v-model="fupVisible" :title="`跟进记录 · ${fupRow?.lead_name || ''}`" size="560px">
       <div class="fup-wrap">
         <el-alert type="info" :closable="false" show-icon
-          :title="`当前阶段：${fupRow?.stage_label || '未标记'}　承接人：${fupRow?.closer_name || '公海待领'}　状态：${statusLabel(fupRow?.lead_status)}`" />
+          :title="`当前阶段：${fupRow?.stage_label || '未标记'}　承接人：${fupRow?.closer_name || '公海待承接'}　状态：${statusLabel(fupRow?.lead_status)}`" />
         <el-timeline v-loading="fupLoading" class="fup-timeline">
           <el-timeline-item v-for="f in fups" :key="f.id"
             :timestamp="`${f.follow_at || f.created_at} · ${f.way_label}`" placement="top"
@@ -380,7 +395,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed, watch } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter, useRoute } from 'vue-router'
 import { growthApi } from '@/api/growth'
@@ -399,7 +414,7 @@ const total = ref(0)
 const poolWaiting = ref(0)
 const roleLabel = ref('未配置')
 
-const filters = reactive({ channel: '', stage: '' })
+const filters = reactive({ channel: '', stage: '', closing: '' })
 
 const createVisible = ref(false)
 const stageVisible = ref(false)
@@ -413,6 +428,7 @@ const flows = ref([])
 const assignVisible = ref(false)
 const assigning = ref(false)
 const roleCanViewAll = ref(false)
+const roleCanAssign = ref(false)
 const opsUsers = ref([])
 const closerUsers = ref([])
 const staffLoading = ref(false)
@@ -456,6 +472,9 @@ const dealCount = computed(() => list.value.filter(r => r.stage_3570 === 'S0').l
 const canCreateLead = computed(() => !store.isDemo)
 // 管理层（可看全量）才拥有「分配」权限，与后端 IsGrowthAdmin(can_view_all) 对齐
 const canManage = computed(() => !store.isDemo && (roleCanViewAll.value || store.isBoss || store.isManager || store.isSuper))
+// 2026-11-03 Boss 指示：分配动作单点授权（后端 roles/me 返回 can_assign_leads），
+// 仅控制「分配 / 批量分配」入口，不改变编辑范围与数据可见范围
+const canAssign = computed(() => canManage.value || roleCanAssign.value)
 
 // 2026-10-30 增量：仅「运营部 → 线索池」开放线索编辑 / 删除（其余页面行为保持不变）
 const isOpsPool = computed(() => (route.path || '').startsWith('/ops/leads'))
@@ -486,6 +505,7 @@ async function loadData() {
     const params = {}
     if (filters.channel) params.channel = filters.channel
     if (filters.stage) params.stage = filters.stage
+    if (filters.closing) params.closing = filters.closing
     const res = await growthApi.leads(params)
     list.value = Array.isArray(res) ? res : (res.results || [])
     total.value = Array.isArray(res) ? res.length : (res.count || list.value.length)
@@ -501,6 +521,7 @@ async function loadRole() {
     const r = await growthApi.myRole()
     if (!r) { roleLabel.value = '未配置'; return }
     roleCanViewAll.value = !!r.can_view_all
+    roleCanAssign.value = !!r.can_assign_leads || store.canAssignLeads
     roleLabel.value = r.has_role ? r.role_label : (r.can_view_all ? '超级总账号' : '未配置')
   } catch (e) { /* ignore */ }
 }
@@ -524,7 +545,7 @@ async function loadAssignUsers() {
   try {
     let staff = []
     try {
-      const res = await orgApi.users({ page_size: 500 })
+      const res = await orgApi.users({ page_size: 500, for_assign: 1 })
       const rows = Array.isArray(res) ? res : (res.results || [])
       staff = rows
         .filter((u) => u.is_active !== false)
@@ -577,10 +598,19 @@ async function submitCreate() {
 
   submitting.value = true
   try {
-    await growthApi.createLead({ ...form })
-    ElMessage.success('录入成功，已自动流转')
+    // 2026-11-05 修复「录入不成功 / 重复录入」：明确成功与失败的反馈——
+    // 成功才关弹窗并立即把新线索插到列表顶部（不等刷新，实时可见）；
+    // 失败弹窗保持打开、表单内容保留，错误原因由拦截器提示，避免盲目重复录入。
+    const created = await growthApi.createLead({ ...form })
+    ElMessage.success(`录入成功：${created?.lead_name || form.name}（已进入待承接流程）`)
     createVisible.value = false
+    if (created && created.id) {
+      list.value = [created, ...list.value]
+      total.value += 1
+    }
     loadData()
+  } catch (e) {
+    // 提交失败：不做任何关闭动作，用户明确知道未成功，可修正后重试
   } finally {
     submitting.value = false
   }
@@ -707,7 +737,8 @@ async function submitAssign() {
 }
 
 // 权限判定（角色接口 / 用户信息）完成后自动拉取人员名单，规避原先的异步竞态
-watch(canManage, (v) => { if (v && !opsUsers.value.length && !closerUsers.value.length) loadAssignUsers() },
+// 2026-11-03：改为跟随 canAssign（含单点授权），否则黄涛这类只有分配权限的人拿不到名单
+watch(canAssign, (v) => { if (v && !opsUsers.value.length && !closerUsers.value.length) loadAssignUsers() },
   { immediate: true })
 
 // ---------- 2026-11-02 Boss 指示：跟进记录（查看/新增/编辑/删除）+ 成交师 ----------
@@ -792,11 +823,27 @@ async function removeFollowup(f) {
   await openFollowups(fupRow.value)
 }
 
+// 2026-11-05 Boss 指示：列表实时同步——30 秒自动轮询刷新（页面隐藏/提交中时暂停），
+// 他人录入或状态变化无需手动刷新即可看到，杜绝「过了十多分钟才发现录进去了」。
+let pollTimer = null
+function startPolling() {
+  stopPolling()
+  pollTimer = setInterval(() => {
+    if (document.visibilityState === 'visible' && !loading.value && !submitting.value) loadData()
+  }, 30000)
+}
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+}
+
 onMounted(() => {
   loadChannels()
   loadRole()
   loadData()
+  startPolling()
 })
+
+onBeforeUnmount(stopPolling)
 </script>
 
 <style scoped>
