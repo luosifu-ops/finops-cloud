@@ -77,6 +77,8 @@ class LeadExtSerializer(serializers.ModelSerializer):
     """线索扩展信息（读）"""
     channel_name = serializers.CharField(source="channel.name", read_only=True)
     channel_code = serializers.CharField(source="channel.code", read_only=True)
+    # 2026-11-03 Boss 指示：线索池展示「录入人」（优先扩展记录创建人，回落到原线索创建人）
+    creator_name = serializers.SerializerMethodField()
     ops_owner_name = serializers.SerializerMethodField()
     closer_name = serializers.SerializerMethodField()
     stage_label = serializers.CharField(source="get_stage_3570_display", read_only=True)
@@ -96,6 +98,7 @@ class LeadExtSerializer(serializers.ModelSerializer):
             "id", "lead", "lead_name", "lead_phone", "lead_status", "lead_intention",
             "channel", "channel_name", "channel_code",
             "source_account_no", "contact_type", "contact_type_label", "contact_value",
+            "creator_name",
             "ops_owner", "ops_owner_name", "closer", "closer_name",
             "stage_3570", "stage_label", "in_pool",
             "customer_need", "contact_person", "acquisition_cost", "deal_amount",
@@ -105,6 +108,10 @@ class LeadExtSerializer(serializers.ModelSerializer):
 
     def get_ops_owner_name(self, obj):
         return _user_name(obj.ops_owner)
+
+    def get_creator_name(self, obj):
+        u = obj.created_by or getattr(getattr(obj, "lead", None), "created_by", None)
+        return _user_name(u)
 
     def get_closer_name(self, obj):
         return _user_name(obj.closer)
@@ -154,6 +161,8 @@ class LeadPoolSerializer(serializers.ModelSerializer):
     status_label = serializers.CharField(source="get_status_display", read_only=True)
     returned_by_name = serializers.SerializerMethodField()
     claimed_by_name = serializers.SerializerMethodField()
+    # 2026-11-03 Boss 指示：线索池展示「录入人姓名」（取线索的 created_by）
+    creator_name = serializers.SerializerMethodField()
     lead_name = serializers.CharField(source="lead_ext.lead.name", read_only=True)
     lead_phone = serializers.CharField(source="lead_ext.lead.phone", read_only=True)
     channel_name = serializers.CharField(source="lead_ext.channel.name", read_only=True)
@@ -161,10 +170,18 @@ class LeadPoolSerializer(serializers.ModelSerializer):
     class Meta:
         model = LeadPool
         fields = ["id", "lead_ext", "lead_name", "lead_phone", "channel_name",
+                  "creator_name",
                   "status", "status_label", "returned_by", "returned_by_name",
                   "returned_reason", "returned_at", "claimed_by", "claimed_by_name",
                   "claimed_at", "claim_count", "created_at"]
         read_only_fields = ["id", "created_at"]
+
+    def get_creator_name(self, obj):
+        lead = getattr(obj.lead_ext, "lead", None)
+        u = getattr(lead, "created_by", None)
+        if u and getattr(u, "id", None):
+            return getattr(u, "display_name", None) or u.username
+        return ""
 
     def get_returned_by_name(self, obj):
         return _user_name(obj.returned_by)

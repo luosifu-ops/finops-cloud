@@ -65,6 +65,15 @@
             <el-option label="5阶段" value="S5" />
             <el-option label="7阶段" value="S7" />
             <el-option label="0成交" value="S0" />
+            <!-- 2026-11-09 Boss 指示：有的客户不属于 3/5/7/0，增加「无需求」 -->
+            <el-option label="无需求" value="SN" />
+          </el-select>
+        </el-form-item>
+        <!-- 2026-11-09 Boss 指示：线索池增加「录入人」筛选，支持多选 -->
+        <el-form-item label="录入人">
+          <el-select v-model="filters.creators" placeholder="全部录入人" clearable multiple
+                     collapse-tags filterable style="width:200px">
+            <el-option v-for="u in creatorUsers" :key="u.id" :label="u.name" :value="u.id" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -179,8 +188,8 @@
       </template>
     </el-dialog>
 
-    <!-- 3570 标记 -->
-    <el-dialog v-model="stageVisible" title="标记 3570 阶段" width="420px">
+    <!-- 3570 标记 / 编辑 / 取消（2026-11-09 Boss 指示：标错了可改可取消，另有「无需求」阶段） -->
+    <el-dialog v-model="stageVisible" :title="current?.stage_3570 ? '编辑 3570 阶段' : '标记 3570 阶段'" width="420px">
       <el-form label-width="90px">
         <el-form-item label="客户">{{ current?.lead_name }}</el-form-item>
         <el-form-item label="阶段">
@@ -189,6 +198,7 @@
             <el-radio-button label="S5">5阶段</el-radio-button>
             <el-radio-button label="S7">7阶段</el-radio-button>
             <el-radio-button label="S0">0成交</el-radio-button>
+            <el-radio-button label="SN">无需求</el-radio-button>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="备注">
@@ -196,7 +206,14 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="stageVisible = false">取消</el-button>
+        <el-popconfirm title="确认取消该线索的阶段标记？（变更留痕，可重新标记）"
+                       confirm-button-text="确认取消" cancel-button-text="再想想"
+                       @confirm="clearStage">
+          <template #reference>
+            <el-button v-if="current?.stage_3570" type="danger" plain>取消标记</el-button>
+          </template>
+        </el-popconfirm>
+        <el-button @click="stageVisible = false">关 闭</el-button>
         <el-button type="primary" @click="submitStage">确定</el-button>
       </template>
     </el-dialog>
@@ -414,7 +431,22 @@ const total = ref(0)
 const poolWaiting = ref(0)
 const roleLabel = ref('未配置')
 
-const filters = reactive({ channel: '', stage: '', closing: '' })
+// 2026-11-09 Boss 指示：录入人多选筛选（creators 为 id 数组，后端 in 过滤）
+const filters = reactive({ channel: '', stage: '', closing: '', creators: [] })
+const creatorUsers = ref([])
+
+async function loadCreatorUsers() {
+  try {
+    const res = await orgApi.users({ page_size: 500, for_assign: 1 })
+    const rows = Array.isArray(res) ? res : (res.results || [])
+    creatorUsers.value = rows
+      .filter((u) => u.is_active !== false)
+      .map((u) => ({
+        id: u.id,
+        name: u.display_name || u.first_name || u.username,
+      }))
+  } catch (e) { /* 拦截器已提示 */ }
+}
 
 const createVisible = ref(false)
 const stageVisible = ref(false)
@@ -486,7 +518,7 @@ function canModifyLead(row) {
 }
 
 function stageTagType(s) {
-  return { S3: 'info', S5: 'primary', S7: 'warning', S0: 'success' }[s] || 'info'
+  return { S3: 'info', S5: 'primary', S7: 'warning', S0: 'success', SN: 'danger' }[s] || 'info'
 }
 function fmt(t) {
   return t ? String(t).slice(0, 19).replace('T', ' ') : ''
@@ -506,6 +538,8 @@ async function loadData() {
     if (filters.channel) params.channel = filters.channel
     if (filters.stage) params.stage = filters.stage
     if (filters.closing) params.closing = filters.closing
+    // 2026-11-09：录入人多选筛选，逗号拼接传后端
+    if (filters.creators && filters.creators.length) params.creators = filters.creators.join(',')
     const res = await growthApi.leads(params)
     list.value = Array.isArray(res) ? res : (res.results || [])
     total.value = Array.isArray(res) ? res.length : (res.count || list.value.length)
@@ -644,6 +678,16 @@ async function submitStage() {
   ElMessage.success('已标记')
   stageVisible.value = false
   loadData()
+}
+
+// 2026-11-09 Boss 指示：取消 3570 标记（标记错了可撤，变更留痕）
+async function clearStage() {
+  try {
+    await growthApi.setStage(current.value.id, { stage: '', remark: '取消标记' })
+    ElMessage.success('已取消标记')
+    stageVisible.value = false
+    loadData()
+  } catch (e) { /* 拦截器已提示 */ }
 }
 
 async function openFlows(row) {
@@ -839,6 +883,7 @@ function stopPolling() {
 onMounted(() => {
   loadChannels()
   loadRole()
+  loadCreatorUsers()
   loadData()
   startPolling()
 })

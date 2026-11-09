@@ -1,1 +1,0 @@
-import{B as t}from"./BaseListView-m4wuqRJU.js";import{O as o,L as r}from"./vue-DoYXRPnN.js";import"./element-Codo3wlA.js";import"./index-CZqmPYoh.js";import"./export-DpRGdH86.js";const _={__name:"TaskView",setup(a){return(e,s)=>(r(),o(t,{title:"做账任务",baseUrl:"/accounting/monthly-tasks/","auto-form":""}))}};export{_ as default};

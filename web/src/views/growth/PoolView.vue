@@ -7,8 +7,8 @@
       </div>
       <div class="page-actions">
         <el-radio-group v-model="statusFilter" @change="loadData">
-          <el-radio-button label="WAITING">待领取</el-radio-button>
-          <el-radio-button label="CLAIMED">已领取</el-radio-button>
+          <el-radio-button label="WAITING">待承接</el-radio-button>
+          <el-radio-button label="CLAIMED">已承接</el-radio-button>
           <el-radio-button label="">全部</el-radio-button>
         </el-radio-group>
         <el-button :icon="Refresh" @click="loadData">刷新</el-button>
@@ -19,14 +19,14 @@
     <el-row :gutter="16" class="stat-row">
       <el-col :span="6">
         <div class="stat-card accent-warning">
-          <div class="label">待领取（公海）</div>
+          <div class="label">待承接（公海）</div>
           <div class="value">{{ waiting }}</div>
           <div class="sub">可被成交师领取或管理层分配</div>
         </div>
       </el-col>
       <el-col :span="6">
         <div class="stat-card accent-success">
-          <div class="label">已领取</div>
+          <div class="label">已承接</div>
           <div class="value">{{ claimed }}</div>
           <div class="sub">已被认领跟进</div>
         </div>
@@ -60,6 +60,13 @@
       <el-table :data="list" v-loading="loading" size="default" max-height="600">
         <el-table-column prop="lead_name" label="客户" min-width="130" />
         <el-table-column prop="lead_phone" label="电话" width="130" />
+        <!-- 2026-11-03 Boss 指示：线索池增加「录入人」列 -->
+        <el-table-column label="录入人" width="100">
+          <template #default="{ row }">
+            <span v-if="row.creator_name">{{ row.creator_name }}</span>
+            <span v-else class="text-weak">—</span>
+          </template>
+        </el-table-column>
         <el-table-column label="来源平台" width="120">
           <template #default="{ row }"><el-tag size="small" effect="plain">{{ row.channel_name }}</el-tag></template>
         </el-table-column>
@@ -187,14 +194,15 @@ async function loadRole() {
     if (!r) { roleLabel.value = '未配置'; canClaim.value = false; canAssign.value = false; return }
     roleLabel.value = r.has_role ? r.role_label : (r.can_view_all ? '超级总账号' : '未配置')
     canClaim.value = (!!(r.has_role && r.role === 'CLOSER')) || !!r.can_view_all
-    canAssign.value = !!r.can_view_all
+    // 2026-11-03：管理层 或 单点授权 can_assign_leads 均可分配
+    canAssign.value = !!r.can_view_all || !!r.can_assign_leads
   } catch (e) {}
 }
 
 async function doClaim(row) {
   try {
     await growthApi.claimLead(row.lead_ext)
-    ElMessage.success('已领取到我的线索池')
+    ElMessage.success('已承接，线索已进入我的线索池')
     loadData()
   } catch (e) {}
 }

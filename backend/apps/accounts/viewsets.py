@@ -328,6 +328,12 @@ class UserViewSet(viewsets.ModelViewSet):
             qs = qs.filter(department_id=department)
         if user.is_superuser or user.role in ("BOSS", "HR"):
             return qs
+        # 2026-11-03 Boss 指示：拥有「线索分配」权限的人需要选人（归属运营 / 承接人），
+        # 否则分配弹窗只能看到自己。仅 when ?for_assign=1 且已授权时放开全员名单。
+        if params.get("for_assign") in ("1", "true", "True"):
+            from apps.common.permissions import can_assign_leads as _can_assign_leads
+            if _can_assign_leads(user):
+                return qs
         if user.role == "MANAGER" and user.department_id:
             return qs.filter(department_id=user.department_id)
         if user.role == "LEADER" and user.team_id:

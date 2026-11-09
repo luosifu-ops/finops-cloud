@@ -32,8 +32,8 @@ import { useUserStore } from '@/store/user'
 import PersonSelect from '@/components/PersonSelect.vue'
 
 const store = useUserStore()
-// 仅主管/老板/超管可见「指派」入口
-const canManage = computed(() => store.isBoss || store.isManager || store.isSuper || store.isHR)
+// 仅主管/老板/超管可见「指派」入口；2026-11-03 增加单点授权 can_assign_leads
+const canManage = computed(() => store.isBoss || store.isManager || store.isSuper || store.isHR || store.canAssignLeads)
 
 // 电销部·意向用户池：复用销售线索接口，按 status=INTENTION（高意向）过滤
 // 展示字段优先用后端 *_name 中文展示字段，避免英文码
@@ -103,7 +103,7 @@ function resetAssign() {
 }
 async function loadUsers() {
   try {
-    const r = await http.get('/accounts/users/', { params: { page_size: 200 } })
+    const r = await http.get('/accounts/users/', { params: { page_size: 200, for_assign: 1 } })
     users.value = Array.isArray(r) ? r : (r.results || [])
   } catch (e) {
     users.value = []

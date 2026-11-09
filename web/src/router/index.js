@@ -53,6 +53,7 @@ const routes = [
       { path: 'growth/lead-entry', name: 'growth-lead-entry', component: () => import('@/views/growth/LeadEntryView.vue'), meta: { title: '线索转化看板', group: '增长中心', icon: 'Promotion' } },
       { path: 'growth/leads', name: 'growth-leads', component: () => import('@/views/growth/LeadWorkbenchView.vue'), meta: { title: '线索工作台', group: '增长中心', icon: 'Connection' } },
       { path: 'growth/pool', name: 'growth-pool', component: () => import('@/views/growth/PoolView.vue'), meta: { title: '线索公海', group: '增长中心', icon: 'Goblet' } },
+      // 2026-11-03 Boss 指示：成交师专属「已承接线索池」（closer_only：仅成交师/管理层可见）
       // 2026-10-30 Boss 指示：外勤 / 增值业务 从「增长中心」拆出，独立为一级部门菜单（见下方外勤部 / 增值业务部）
       { path: 'contracts/sales', name: 'contracts-sales', component: () => import('@/views/contracts/ContractsView.vue'), meta: { title: '电销部合同', group: '增长中心', parent: '合同订单名录', icon: 'Document' }, props: () => ({ dept: 'SALES' }) },
       { path: 'contracts/ops', name: 'contracts-ops', component: () => import('@/views/contracts/ContractsView.vue'), meta: { title: '运营部合同', group: '增长中心', parent: '合同订单名录', icon: 'Document' }, props: () => ({ dept: 'OPS' }) },
@@ -63,6 +64,8 @@ const routes = [
       { path: 'ops/input', name: 'ops-input', component: () => import('@/views/ops/DataInputView.vue'), meta: { title: '数据录入', group: '运营部', icon: 'Upload', dept: 'OPS' } },
       // 2026-10-30 Boss 指示：线索池 移到 数据录入 之后
       { path: 'ops/leads', name: 'ops-leads', component: () => import('@/views/growth/LeadWorkbenchView.vue'), meta: { title: '线索池', group: '运营部', icon: 'Connection', dept: 'OPS' } },
+      // 2026-11-03 Boss 指示：成交师「已承接线索池」归运营部（与线索池并列，closer_only 仅成交师/管理层可见）
+      { path: 'ops/closing', name: 'ops-closing', component: () => import('@/views/ops/MyClosingView.vue'), meta: { title: '已承接线索池', group: '运营部', icon: 'Finished', dept: 'OPS', closer_only: true } },
       { path: 'ops/compare', name: 'ops-compare', component: () => import('@/views/ops/CompareView.vue'), meta: { title: '平台对比', group: '运营部', icon: 'Histogram', dept: 'OPS' } },
       { path: 'ops/funnel', name: 'ops-funnel', component: () => import('@/views/ops/FunnelView.vue'), meta: { title: '转化漏斗', group: '运营部', icon: 'Filter', dept: 'OPS' } },
       { path: 'ops/content', name: 'ops-content', component: () => import('@/views/ops/ContentView.vue'), meta: { title: '内容运营', group: '运营部', icon: 'Picture', dept: 'OPS' } },

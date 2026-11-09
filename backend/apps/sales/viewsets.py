@@ -11,7 +11,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 
 from apps.accounts.models import User
-from apps.common.permissions import visible_user_ids, IsManagerOrAbove, IsHR, is_boss
+from apps.common.permissions import visible_user_ids, IsManagerOrAbove, IsHR, is_boss, CanAssignLeads
 from apps.common.viewsets import ScopeModelViewSet, BizScopeModelViewSet
 from .models import (
     Lead, Customer, Contract, CallRecord, FollowUp, SalesTarget, CommissionRule, SalaryRecord,
@@ -126,7 +126,8 @@ class LeadViewSet(BizScopeModelViewSet):
         else:
             serializer.save(created_by=self.request.user)
 
-    @action(detail=False, methods=["post"], permission_classes=[IsManagerOrAbove])
+    # 2026-11-03：权限放宽为「经理及以上 或 单点授权 can_assign_leads」（Boss 指示）
+    @action(detail=False, methods=["post"], permission_classes=[CanAssignLeads])
     def assign(self, request):
         """批量分配线索：ids 数组 + owner_id"""
         ids = request.data.get("ids") or []

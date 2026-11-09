@@ -588,7 +588,7 @@ const ENUM_FALLBACK = {
   CLOSED: '已关闭', REJECTED: '已驳回', APPROVED: '已通过', RESOLVED: '已解决',
   PENDING_APPROVAL: '审批中', SUBMITTED: '已提交', RETURNED: '已退回',
   DRAFT: '草稿', CANCELLED: '已取消', CANCELED: '已取消', REVOKED: '已撤销',
-  WAITING: '待领取', CLAIMED: '已领取', ASSIGNED: '已派单', OPEN: '进行中', ONGOING: '进行中',
+  WAITING: '待承接', CLAIMED: '已承接', ASSIGNED: '已派单', OPEN: '进行中', ONGOING: '进行中',
   ACTIVE: '启用', ENABLED: '启用', DISABLED: '停用', INACTIVE: '停用',
   NORMAL: '正常', VALID: '有效', INVALID: '失效', EXPIRED: '已过期', LAPSED: '已失效',
   NEW: '新客', FOLLOWING: '跟进中', WON: '已成交', LOST: '已流失',

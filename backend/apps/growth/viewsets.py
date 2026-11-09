@@ -11,6 +11,7 @@ from datetime import date
 from django.db import transaction
 from django.db.models import Q, Count, Sum
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -140,6 +141,17 @@ class LeadExtViewSet(viewsets.ModelViewSet):
             qs = qs.filter(closer__isnull=True)
         elif closing == "closed":
             qs = qs.filter(closer__isnull=False)
+        # 2026-11-09 Boss 指示：线索池增加「录入人」筛选，支持多选（creators=1,2,3）
+        # 录入口径与序列化器一致：优先 LeadExt.created_by，回落原 Lead.created_by
+        creators = (p.get("creators") or "").strip()
+        if creators:
+            ids = []
+            for s in creators.split(","):
+                s = s.strip()
+                if s.isdigit():
+                    ids.append(int(s))
+            if ids:
+                qs = qs.filter(Q(created_by_id__in=ids) | Q(lead__created_by_id__in=ids))
         return qs.order_by("-created_at")
 
     # ---------- 录入（运营） ----------
@@ -269,6 +281,20 @@ class LeadExtViewSet(viewsets.ModelViewSet):
                 lead.save()
 
         ext_dirty = False
+        # 2026-11-09 Boss 指示：支持编辑录入日期（created_at 原为自动字段，
+        # 存量线索补录时实际录入时间与显示不符，允许修正并留痕）
+        if "created_at" in d:
+            raw = str(d.get("created_at") or "").strip()
+            parsed = parse_datetime(raw) if raw else None
+            if parsed is None:
+                return Response({"detail": "录入日期格式不正确"},
+                                status=status.HTTP_400_BAD_REQUEST)
+            if timezone.is_naive(parsed):
+                parsed = timezone.make_aware(parsed)
+            if ext.created_at != parsed:
+                ext.created_at = parsed
+                ext_dirty = True
+                changed.append("录入日期")
         for field, label in self.LEAD_EDIT_EXT_FIELDS.items():
             if field not in d:
                 continue
@@ -544,12 +570,22 @@ class LeadExtViewSet(viewsets.ModelViewSet):
     # ---------- 3570 阶段标记（人工） ----------
     @action(detail=True, methods=["post"])
     def set_stage(self, request, pk=None):
-        """人工手动标记 3570 阶段（3/5/7 阶段，0 成交）"""
+        """人工手动标记 3570 阶段（3/5/7 阶段，0 成交，无需求）
+
+        2026-11-09 Boss 指示：
+        1) 新增「无需求(SN)」阶段——有的客户不属于 3/5/7/0 任何一类；
+        2) 支持取消标记——stage 传空串/null 即清空阶段，标记错了可改可撤；
+           所有变更（含清空）均写入 LeadStageLog 留痕。
+        """
         ext = self.get_object()
-        new_stage = request.data.get("stage")
-        if new_stage not in dict(LeadExt.STAGE_3570):
+        # 空串 / null 一律视为「取消标记」
+        new_stage = request.data.get("stage") or ""
+        if new_stage and new_stage not in dict(LeadExt.STAGE_3570):
             return Response({"detail": "阶段值非法"}, status=status.HTTP_400_BAD_REQUEST)
         old = ext.stage_3570
+        if new_stage == (old or ""):
+            return Response({"detail": "阶段未变化", "stage": new_stage,
+                             "stage_label": ext.get_stage_3570_display()})
         ext.stage_3570 = new_stage
         ext.save(update_fields=["stage_3570"])
         LeadStageLog.objects.create(
@@ -560,7 +596,8 @@ class LeadExtViewSet(viewsets.ModelViewSet):
             ext.lead.status = "DEAL"
             ext.lead.dealt_at = timezone.now()
             ext.lead.save(update_fields=["status", "dealt_at"])
-        return Response({"detail": "已标记", "stage": new_stage,
+        detail = "已取消标记" if not new_stage else "已标记"
+        return Response({"detail": detail, "stage": new_stage,
                          "stage_label": ext.get_stage_3570_display()})
 
     # ---------- 流转记录 ----------

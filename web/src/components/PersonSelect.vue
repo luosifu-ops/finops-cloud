@@ -155,7 +155,7 @@ function onVisible(v) { if (!v) query.value = '' }
 async function load() {
   if (!props.autoLoad || loaded.value) return
   try {
-    const r = await orgApi.users({ page_size: 500 })
+    const r = await orgApi.users({ page_size: 500, for_assign: 1 })
     users.value = Array.isArray(r) ? r : (r.results || r.data?.results || r.data || [])
     loaded.value = true
   } catch (e) { /* 静默：无权限时仅不可搜索 */ }

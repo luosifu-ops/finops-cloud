@@ -1,1 +1,0 @@
-import{B as e}from"./BaseListView-BhzAWayt.js";import{O as r,L as a}from"./vue-DoYXRPnN.js";import"./element-Codo3wlA.js";import"./index-BD97usGo.js";import"./export-DpRGdH86.js";const l={__name:"PerformanceView",setup(t){return(o,s)=>(a(),r(e,{title:"业绩排行",baseUrl:"/sales/contracts/performance/","read-only":"","raw-array":"","can-delete":!1}))}};export{l as default};

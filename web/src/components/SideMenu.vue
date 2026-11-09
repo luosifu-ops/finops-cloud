@@ -46,14 +46,25 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/user'
+import { growthApi } from '@/api/growth'
 
 defineProps({ collapsed: Boolean })
 const router = useRouter()
 const store = useUserStore()
 const active = computed(() => router.currentRoute.value.path)
+
+// 2026-11-03：closer_only 菜单（已承接线索池）仅成交师 / 管理层可见
+const isCloserRole = ref(false)
+onMounted(async () => {
+  if (!store.token) return
+  try {
+    const r = await growthApi.myRole()
+    isCloserRole.value = !!r && (!!r.can_view_all || (r.has_role && r.role === 'CLOSER') || !!r.can_assign_leads)
+  } catch (e) { /* ignore */ }
+})
 
 const allRoutes = computed(() => {
   const root = router.options.routes.find(r => r.path === '/')
@@ -111,6 +122,8 @@ const menuGroups = computed(() => {
     if (meta.leader && !store.isLeader) continue
     // manager_only: 仅 BOSS / MANAGER 可见（HR / LEADER / EMPLOYEE 均屏蔽）
     if (meta.manager_only && !store.isManager) continue
+    // closer_only: 仅成交师 / 管理层可见（2026-11-03 已承接线索池）
+    if (meta.closer_only && !isCloserRole.value) continue
     if (meta.dept) {
       const myDept = store.userInfo?.department_name || ''
       const dm = { SALES: '电销部', ACCOUNT: '会计部', OPS: '运营部' }

@@ -1,1 +1,0 @@
-import{B as e}from"./BaseListView-CIrwWoz9.js";import{O as r,L as t}from"./vue-DoYXRPnN.js";import"./element-Codo3wlA.js";import"./index-DrC8gegk.js";import"./export-DpRGdH86.js";const l={__name:"LeaveView",setup(o){return(a,s)=>(t(),r(e,{title:"请假加班",baseUrl:"/hr/leaves/","auto-form":""}))}};export{l as default};

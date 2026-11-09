@@ -1,1 +1,0 @@
-import{B as a}from"./BaseListView-DLJQVhSc.js";import{O as r,L as e}from"./vue-DoYXRPnN.js";import"./element-Codo3wlA.js";import"./index-C0LnJK8s.js";import"./export-DpRGdH86.js";const n={__name:"OpsDashboardView",setup(t){return(s,o)=>(e(),r(a,{title:"投放总览",baseUrl:"/ops/daily-stats/summary/","read-only":"","raw-array":"","can-delete":!1}))}};export{n as default};

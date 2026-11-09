@@ -64,6 +64,8 @@ class LeadExt(BaseModel):
         ("S5", "5阶段"),
         ("S7", "7阶段"),
         ("S0", "0成交"),
+        # 2026-11-09 Boss 指示：有的客户既不属于 3/5/7/0（没有需求），增加「无需求」阶段
+        ("SN", "无需求"),
     ]
 
     lead = models.OneToOneField(
@@ -161,7 +163,9 @@ class LeadStageLog(BaseModel):
     lead_ext = models.ForeignKey(
         LeadExt, on_delete=models.CASCADE, related_name="stage_logs", verbose_name="线索")
     old_stage = models.CharField("原阶段", max_length=5, blank=True, default="")
-    new_stage = models.CharField("新阶段", max_length=5, choices=LeadExt.STAGE_3570)
+    # 2026-11-09：取消标记（清空阶段）也要留痕，new_stage 允许为空
+    new_stage = models.CharField("新阶段", max_length=5, choices=LeadExt.STAGE_3570,
+                                 blank=True, default="")
     remark = models.CharField("备注", max_length=300, blank=True)
 
     class Meta:
@@ -181,7 +185,8 @@ class LeadPool(BaseModel):
 
     承接人无法跟进 → 退回公海 → 支持二次分配/被他人领取。
     """
-    STATUS = [("WAITING", "待领取"), ("CLAIMED", "已领取")]
+    # 2026-11-03 Boss 指示：文案细化「待承接 / 已承接」
+    STATUS = [("WAITING", "待承接"), ("CLAIMED", "已承接")]
     lead_ext = models.OneToOneField(
         LeadExt, on_delete=models.CASCADE, related_name="pool", verbose_name="线索")
     status = models.CharField("状态", max_length=10, choices=STATUS, default="WAITING")

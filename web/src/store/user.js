@@ -9,6 +9,8 @@ export const useUserStore = defineStore('user', {
     isSuper: (s) => !!s.userInfo && !!s.userInfo.is_superuser,
     isBoss: (s) => !!s.userInfo && (s.userInfo.role === 'BOSS' || s.userInfo.is_superuser),
     isManager: (s) => !!s.userInfo && (['BOSS', 'MANAGER'].includes(s.userInfo.role) || s.userInfo.is_superuser),
+    // 2026-11-03 Boss 指示：线索分配单点授权（can_assign_leads）不影响其他经理级权限
+    canAssignLeads: (s) => !!s.userInfo && ((['BOSS', 'MANAGER'].includes(s.userInfo.role) || s.userInfo.is_superuser) || !!s.userInfo.can_assign_leads),
     isLeader: (s) => !!s.userInfo && (['BOSS', 'MANAGER', 'LEADER'].includes(s.userInfo.role) || s.userInfo.is_superuser),
     isHR: (s) => !!s.userInfo && (['BOSS', 'HR'].includes(s.userInfo.role) || s.userInfo.is_superuser),
     isAdmin: (s) => !!s.userInfo && (['BOSS', 'HR', 'MANAGER'].includes(s.userInfo.role) || s.userInfo.is_superuser),
