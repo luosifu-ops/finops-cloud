@@ -6,7 +6,9 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('growth', '0009_alter_fieldtask_assignee_name_and_more'),
+        # 2026-11-09 生产库已应用 0010_add_wuba_channel / 0011_alter_leadpool_status
+        #（服务器侧生成，本地仓库此前缺失），本迁移必须挂在 0011 之后，避免迁移图分叉
+        ('growth', '0011_alter_leadpool_status'),
     ]
 
     operations = [
@@ -14,11 +16,6 @@ class Migration(migrations.Migration):
             model_name='leadext',
             name='stage_3570',
             field=models.CharField(blank=True, choices=[('S3', '3阶段'), ('S5', '5阶段'), ('S7', '7阶段'), ('S0', '0成交'), ('SN', '无需求')], default='', help_text='人工手动标记，不强制自动算法；S0=0成交阶段', max_length=5, verbose_name='3570阶段'),
-        ),
-        migrations.AlterField(
-            model_name='leadpool',
-            name='status',
-            field=models.CharField(choices=[('WAITING', '待承接'), ('CLAIMED', '已承接')], default='WAITING', max_length=10, verbose_name='状态'),
         ),
         migrations.AlterField(
             model_name='leadstagelog',
