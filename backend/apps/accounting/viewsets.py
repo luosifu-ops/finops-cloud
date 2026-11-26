@@ -821,7 +821,10 @@ class ReminderCenterApiView(APIView):
         soon30 = today + timedelta(days=30)
 
         # ① 申报：截止日已过但未申报 = 逾期；7 天内到期未申报 = 临期
-        decl = self._scoped(TaxDeclaration.objects.filter(is_deleted=False, declared_at__isnull=True), u)
+        # 2026-11-26 修复：TaxDeclaration 没有 client 字段，客户经月度任务关联（task__client），
+        # 原先按默认 client 路径过滤，普通会计/销售角色访问直接 500（FieldError）
+        decl = self._scoped(TaxDeclaration.objects.filter(
+            is_deleted=False, declared_at__isnull=True), u, client_path="task__client")
         decl_overdue = decl.filter(deadline__lt=today).order_by("deadline")
         decl_soon = decl.filter(deadline__gte=today, deadline__lte=soon).order_by("deadline")
 
