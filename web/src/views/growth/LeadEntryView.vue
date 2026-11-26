@@ -37,7 +37,7 @@
               <span>线索转化分析与跟进明细</span>
               <div>
                 <el-button type="primary" @click="openCreate">+ 录入线索</el-button>
-                <el-button @click="loadData">刷新</el-button>
+                <el-button :loading="loading" @click="loadData">刷新</el-button>
               </div>
             </div>
           </template>
@@ -52,8 +52,8 @@
               <el-input v-model="filters.account" placeholder="来源账号编号" clearable style="width:160px" />
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" plain @click="loadData">查询</el-button>
-              <el-button @click="resetFilter">重置</el-button>
+              <el-button type="primary" plain :loading="loading" @click="loadData">查 询</el-button>
+              <el-button :disabled="loading" @click="resetFilter">重 置</el-button>
             </el-form-item>
           </el-form>
 
@@ -356,6 +356,8 @@ async function loadUsers() {
 }
 
 async function loadData() {
+  // 2026-11-26：防重入 + 按钮转圈反馈（与线索池口径一致）
+  if (loading.value) return
   loading.value = true
   try {
     const params = {}

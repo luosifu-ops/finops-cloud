@@ -19,7 +19,7 @@
                 <el-option label="暂时无需求" value="ST" />
               </el-option-group>
             </el-select>
-            <el-button @click="loadData">刷新</el-button>
+            <el-button :loading="loading" @click="loadData">刷新</el-button>
           </div>
         </div>
       </template>
@@ -253,6 +253,8 @@ const WAY_LABELS = { PHONE: '电话', WECHAT: '微信', VISIT: '上门', MEETING
 const stageTagType = (s) => ({ S3: 'primary', S5: 'warning', S7: 'danger', S0: 'success', SN: 'danger', ST: 'info' }[s] || 'info')
 
 async function loadData() {
+  // 2026-11-26：防重入——30 秒轮询未完成时忽略重复触发
+  if (loading.value) return
   loading.value = true
   try {
     const params = {}

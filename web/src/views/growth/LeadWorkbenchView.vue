@@ -40,7 +40,7 @@
               @click="openBulkAssign">批量分配{{ selected.length ? `(${selected.length})` : '' }}</el-button>
             <el-button v-if="canCreateLead" type="primary" @click="openCreate">+ 录入线索</el-button>
             <el-button @click="goPool">公海 →</el-button>
-            <el-button @click="loadData">刷新</el-button>
+            <el-button :loading="loading" @click="loadData">刷新</el-button>
           </div>
         </div>
       </template>
@@ -76,21 +76,15 @@
             <el-option v-for="u in creatorUsers" :key="u.id" :label="u.name" :value="u.id" />
           </el-select>
         </el-form-item>
-        <!-- 2026-11-24 Boss 指示：恢复「待承接 / 已承接线索池」筛选（后端 closing 参数已支持） -->
-        <el-form-item label="承接状态">
-          <el-select v-model="filters.closing" placeholder="全部线索" clearable style="width:130px">
-            <el-option label="待承接" value="waiting" />
-            <el-option label="已承接" value="closed" />
-          </el-select>
-        </el-form-item>
         <!-- 2026-11-23 Boss 指示：按录入日期筛选 -->
         <el-form-item label="录入日期">
           <el-date-picker v-model="filters.dateRange" type="daterange" value-format="YYYY-MM-DD"
             start-placeholder="开始" end-placeholder="结束" style="width:240px" />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" plain @click="loadData">查询</el-button>
-          <el-button @click="resetFilters">重置</el-button>
+          <!-- 2026-11-26：查询/重置加 loading 反馈——数据量大时请求需数秒，避免「点了没反应」的错觉 -->
+          <el-button type="primary" plain :loading="loading" @click="loadData">查 询</el-button>
+          <el-button :disabled="loading" @click="resetFilters">重 置</el-button>
         </el-form-item>
       </el-form>
 
@@ -572,6 +566,9 @@ async function loadChannels() {
 }
 
 async function loadData() {
+  // 2026-11-26：防重入——上一次加载（含 30 秒轮询）还没完成时，重复点击直接忽略，
+  // 避免请求叠加导致页面越来越卡（线索已全量拉取，一次 19 页请求）
+  if (loading.value) return
   loading.value = true
   try {
     const params = {}
