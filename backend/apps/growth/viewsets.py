@@ -11,7 +11,7 @@ from datetime import date
 from django.db import transaction
 from django.db.models import Q, Count, Sum
 from django.utils import timezone
-from django.utils.dateparse import parse_datetime
+from django.utils.dateparse import parse_datetime, parse_date
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -33,7 +33,7 @@ from .serializers import (
 from .permissions import (
     can_view_all, leads_scope_all, dept_scope_ids, scope_leads, scope_field_tasks, scope_projects,
     IsGrowthAdmin, IsOpsOrAdmin, IsCloserOrAdmin, IsFieldOrAdmin,
-    IsFieldManagerOrAdmin, is_field_manager, IsGrowthAssigner,
+    IsFieldManagerOrAdmin, is_field_manager, IsGrowthAssigner, is_closer,
 )
 
 # 旧 Lead.SOURCE 的合法枚举（新平台落 OTHER，保证旧模块不受影响）
@@ -141,8 +141,6 @@ class LeadExtViewSet(viewsets.ModelViewSet):
             qs = qs.filter(closer__isnull=True)
         elif closing == "closed":
             qs = qs.filter(closer__isnull=False)
-        # 2026-11-09 Boss 指示：线索池增加「录入人」筛选，支持多选（creators=1,2,3）
-        # 录入口径与序列化器一致：优先 LeadExt.created_by，回落原 Lead.created_by
         creators = (p.get("creators") or "").strip()
         if creators:
             ids = []
@@ -152,6 +150,13 @@ class LeadExtViewSet(viewsets.ModelViewSet):
                     ids.append(int(s))
             if ids:
                 qs = qs.filter(Q(created_by_id__in=ids) | Q(lead__created_by_id__in=ids))
+        # 2026-11-23 Boss 指示：按「录入日期」筛选（优先 entry_date，存量回退 created_at）
+        date_from = p.get("date_from") or p.get("start_date")
+        date_to = p.get("date_to") or p.get("end_date")
+        if date_from:
+            qs = qs.filter(Q(entry_date__gte=date_from) | Q(entry_date__isnull=True, created_at__date__gte=date_from))
+        if date_to:
+            qs = qs.filter(Q(entry_date__lte=date_to) | Q(entry_date__isnull=True, created_at__date__lte=date_to))
         return qs.order_by("-created_at")
 
     # ---------- 录入（运营） ----------
@@ -185,6 +190,7 @@ class LeadExtViewSet(viewsets.ModelViewSet):
         # 原逻辑 _auto_pick_closer 会在管理层未分配的情况下直接把线索压给成交师，
         # 现改为：仅当录入时显式指定 closer 才直接分配；否则一律进入公海待承接，
         # 由管理层「分配」或成交师自行「领取」完成承接。
+        # （2026-11-25 服务器侧同步取消自动派单，口径一致：# closer = _auto_pick_closer(channel)）
 
         # 1) 在原 Lead 表新增一条记录（不改动 Lead 任何结构）
         lead = Lead.objects.create(
@@ -214,6 +220,7 @@ class LeadExtViewSet(viewsets.ModelViewSet):
             contact_person=d.get("contact_person") or "",
             acquisition_cost=d.get("acquisition_cost") or 0,
             deal_amount=d.get("deal_amount") or 0,
+            entry_date=d.get("entry_date") or timezone.localdate(),
             created_by=user,
         )
         # 3) 流转留痕
@@ -238,7 +245,7 @@ class LeadExtViewSet(viewsets.ModelViewSet):
         "contact_type": "联系方式类型", "contact_value": "联系方式",
         "customer_need": "客户需求", "contact_person": "联系人",
         "acquisition_cost": "获客成本", "deal_amount": "成交金额",
-        "stage_3570": "3570阶段",
+        "stage_3570": "3570阶段", "entry_date": "录入日期",
     }
     # 可改的原线索字段（回写 sales.Lead，仅改内容不改结构）
     LEAD_EDIT_LEAD_FIELDS = {
@@ -299,6 +306,20 @@ class LeadExtViewSet(viewsets.ModelViewSet):
             if field not in d:
                 continue
             value = d.get(field)
+            if field == "entry_date":
+                # 2026-11-26 修复：录入日期是日期字段，前端提交的是 "YYYY-MM-DD" 字符串；
+                # 原先直接把字符串赋给模型，保存后序列化报 500（整笔编辑回滚）。
+                raw = str(value or "").strip()
+                parsed = parse_date(raw) if raw else None
+                if raw and parsed is None:
+                    return Response({"detail": "录入日期格式不正确"},
+                                    status=status.HTTP_400_BAD_REQUEST)
+                if (getattr(ext, "entry_date") or None) == parsed:
+                    continue
+                ext.entry_date = parsed
+                ext_dirty = True
+                changed.append(label)
+                continue
             if field == "channel":
                 channel = LeadChannel.objects.filter(id=value, is_deleted=False).first()
                 if channel is None:
@@ -374,10 +395,20 @@ class LeadExtViewSet(viewsets.ModelViewSet):
         return Response({"detail": "已承接", "id": ext.id})
 
     # ---------- 退回公海 ----------
-    @action(detail=True, methods=["post"], permission_classes=[IsCloserOrAdmin])
+    @action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated])
     def return_pool(self, request, pk=None):
-        """承接人无法跟进 → 退回公海，支持二次分配"""
+        """承接人无法跟进 → 退回公海，支持二次分配
+
+        2026-11-24 Boss 指示：普通员工也要能使用流转功能——
+        放宽为「管理层 / 成交师 / 本人录入(ops_owner) / 本人承接(closer)」可退；
+        数据隔离由 get_queryset 的 scope_leads 兜底：不相关的人根本查不到该线索（404）。
+        """
         ext = self.get_object()
+        u = request.user
+        if not (can_view_all(u) or is_closer(u)
+                or ext.ops_owner_id == u.id or ext.closer_id == u.id):
+            return Response({"detail": "仅录入人、承接人或管理层可退回公海"},
+                            status=status.HTTP_403_FORBIDDEN)
         reason = request.data.get("reason") or "无法跟进"
         with transaction.atomic():
             ext.closer = None
@@ -991,7 +1022,7 @@ class FieldTaskViewSet(viewsets.ModelViewSet):
         due_at = None
         due_raw = (d.get("due_at") or "").strip()
         if due_raw:
-            from django.utils.dateparse import parse_datetime, parse_date
+            from django.utils.dateparse import parse_datetime, parse_date, parse_date
             dt = parse_datetime(due_raw)
             if dt is None:
                 dd = parse_date(due_raw)

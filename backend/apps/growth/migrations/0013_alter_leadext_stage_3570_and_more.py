@@ -1,8 +1,9 @@
 # 2026-11-26 Boss 指示：已承接线索池「其他需求」增加「暂时无需求」阶段（原来没有，新增）
 #
 # 说明：仅扩展 stage_3570 的可选项（choices），不改表结构、不改任何存量数据；
-#       「无需求(SN)」原有选项保留。手工编写并挂在两个叶子迁移之后，
-#       避免 makemigrations 因双叶子节点额外生成 merge 迁移。
+#       「无需求(SN)」原有选项保留。手工编写，不生成 merge 迁移。
+# 依赖：生产服务器已有 0012_leadext_entry_date（2026-11-23），本迁移编号顺延为 0013
+#       并挂在它之后，保持单一迁移链。
 
 from django.db import migrations, models
 
@@ -16,8 +17,7 @@ STAGE_3570 = [
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('growth', '0011_alter_leadpool_status'),
-        ('growth', '0010_alter_leadext_stage_3570_alter_leadpool_status_and_more'),
+        ('growth', '0012_leadext_entry_date'),
     ]
 
     operations = [

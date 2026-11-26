@@ -312,7 +312,9 @@ class AdDailyStatViewSet(BizScopeModelViewSet):
     def platform_compare(self, request):
         """各平台对比"""
         qs = self.get_queryset()
-        rows = qs.values("platform_id", "platform__name").annotate(**SUM_FIELDS)
+        # 2026-11-23 修复：模型默认 ordering=["-date"] 会混入 GROUP BY，
+        # 导致同一平台按天拆成多行（生产实测同平台出现 3 行）。必须 .order_by() 清空。
+        rows = qs.values("platform_id", "platform__name").annotate(**SUM_FIELDS).order_by()
         data = []
         for row in rows:
             item = aggregate_row(row)
@@ -321,6 +323,75 @@ class AdDailyStatViewSet(BizScopeModelViewSet):
             data.append(with_metrics(item))
         data.sort(key=lambda x: x["cost"], reverse=True)
         return Response({"code": 0, "msg": "ok", "data": data})
+
+    @action(detail=False, methods=["get"], url_path="overview-by-platform")
+    def overview_by_platform(self, request):
+        """投放总览按平台拆分（2026-11-23 Boss 指示）
+
+        返回三平台（抖音素材 / 抖音直播 / 闲鱼）各自的汇总数据 + 合计行。
+        - 平台识别：优先按 code（DOUYIN_MATERIAL / DOUYIN_LIVE / XIANYU），
+          兼容存量无 code 时按 name 匹配，确保历史数据不丢。
+        - 支持 start_date / end_date（复用 get_queryset 的日期过滤与权限隔离）。
+        - 每行含全部投放指标 + CPL/CAC/ROI 等派生指标。
+        """
+        # 目标平台配置：优先 code，其次 name 关键字兜底
+        TARGETS = [
+            {"key": "DOUYIN_MATERIAL", "label": "抖音素材",
+             "codes": ["DOUYIN_MATERIAL"], "names": ["抖音素材", "抖音短视频"]},
+            {"key": "DOUYIN_LIVE", "label": "抖音直播",
+             "codes": ["DOUYIN_LIVE", "DOUYIN"], "names": ["抖音直播"]},
+            {"key": "XIANYU", "label": "闲鱼",
+             "codes": ["XIANYU"], "names": ["闲鱼"]},
+        ]
+        qs = self.get_queryset()
+        rows = qs.values("platform_id", "platform__name", "platform__code").annotate(
+            **SUM_FIELDS).order_by()
+        by_id = {r["platform_id"]: r for r in rows}
+
+        platforms = AdPlatform.objects.filter(is_deleted=False)
+        result = []
+        used_ids = set()
+        for target in TARGETS:
+            # 先按 code 精确匹配
+            plat = platforms.filter(code__in=target["codes"]).order_by("id").first()
+            matched_ids = []
+            if plat:
+                matched_ids.append(plat.id)
+            # 再按 name 兜底（覆盖存量 code 为空的记录，如"抖音短视频"）
+            for p in platforms.filter(name__in=target["names"]):
+                if p.id not in matched_ids:
+                    matched_ids.append(p.id)
+            agg = {k: 0.0 for k in SUM_FIELDS}
+            names = []
+            for pid in matched_ids:
+                used_ids.add(pid)
+                r = by_id.get(pid)
+                if r:
+                    for k in SUM_FIELDS:
+                        agg[k] += to_float(r.get(k))
+                    if r.get("platform__name"):
+                        names.append(r["platform__name"])
+            item = aggregate_row(agg)
+            item.update({
+                "key": target["key"],
+                "platform_name": target["label"],
+                "platform_ids": matched_ids,
+                "matched_names": names,
+                "has_platform": bool(matched_ids),
+            })
+            result.append(with_metrics(item))
+
+        # 合计行 = 所有平台汇总之和（含非三平台的历史数据，保证合计与旧总览口径一致）
+        total = {k: sum(to_float(r.get(k)) for r in rows) for k in SUM_FIELDS}
+        total_data = with_metrics(aggregate_row(total))
+        total_data["key"] = "TOTAL"
+        total_data["platform_name"] = "合计"
+        total_data["days"] = qs.values("date").distinct().count()
+        return Response({"code": 0, "msg": "ok", "data": {
+            "platforms": result,
+            "total": total_data,
+            "other_count": len(rows) - len(used_ids),
+        }})
 
     @action(detail=False, methods=["get"])
     def trend(self, request):

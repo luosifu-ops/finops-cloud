@@ -91,6 +91,8 @@ class LeadExtSerializer(serializers.ModelSerializer):
     # 2026-09-12 增量：成交与转化率（只读派生）
     is_deal = serializers.BooleanField(read_only=True)
     conversion_rate = serializers.IntegerField(read_only=True)
+    # 2026-11-23 Boss 指示：录入日期展示（优先 entry_date，存量无值回退 created_at）
+    input_date = serializers.SerializerMethodField()
 
     class Meta:
         model = LeadExt
@@ -102,9 +104,18 @@ class LeadExtSerializer(serializers.ModelSerializer):
             "ops_owner", "ops_owner_name", "closer", "closer_name",
             "stage_3570", "stage_label", "in_pool",
             "customer_need", "contact_person", "acquisition_cost", "deal_amount",
+            "entry_date", "input_date",
             "is_deal", "conversion_rate", "extra", "created_at",
         ]
-        read_only_fields = ["id", "created_at", "is_deal", "conversion_rate"]
+        read_only_fields = ["id", "created_at", "is_deal", "conversion_rate", "input_date"]
+
+    def get_input_date(self, obj):
+        """业务录入日期：entry_date 优先；存量记录回退到 created_at 的日期部分"""
+        d = getattr(obj, "entry_date", None)
+        if d:
+            return d.strftime("%Y-%m-%d")
+        ca = getattr(obj, "created_at", None)
+        return ca.strftime("%Y-%m-%d") if ca else ""
 
     def get_ops_owner_name(self, obj):
         return _user_name(obj.ops_owner)
@@ -145,6 +156,8 @@ class LeadExtCreateSerializer(serializers.Serializer):
                                            required=False, default=0)
     # 指定成交师（不传则系统按负载自动流转）
     closer = serializers.IntegerField(label="指定成交师", required=False, allow_null=True)
+    # 2026-11-23 Boss 指示：录入日期可选，不传默认当天
+    entry_date = serializers.DateField(label="录入日期", required=False, allow_null=True)
 
     def validate(self, attrs):
         if attrs.get("contact_type") == "PHONE" and not attrs.get("phone"):

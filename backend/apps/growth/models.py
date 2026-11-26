@@ -103,6 +103,10 @@ class LeadExt(BaseModel):
     deal_amount = models.DecimalField(
         "签单金额(元)", max_digits=14, decimal_places=2, default=0,
         help_text="录入成交金额，系统据此自动计算转化率与占比")
+    # 2026-11-23 Boss 指示：线索录入日期可选（默认当天，可补录历史日期）
+    # 与 created_at（系统入库时间）分离：entry_date=业务录入日期，created_at=技术写入时间
+    entry_date = models.DateField("录入日期", null=True, blank=True, db_index=True,
+                                  help_text="线索实际录入日期，默认当天，可补录历史")
     extra = models.JSONField("扩展字段", default=dict, blank=True)
 
     class Meta:
