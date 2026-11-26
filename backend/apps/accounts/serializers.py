@@ -73,7 +73,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
                   "role", "role_name", "status", "status_name", "entry_date", "regular_date",
                   "probation_end", "leave_date", "id_card_no", "bank_card_no", "address",
                   "emergency_contact", "emergency_phone", "month_target", "base_salary",
-                  "date_joined", "last_login", "is_superuser"]
+                  "date_joined", "last_login", "is_superuser", "can_assign_leads"]
         read_only_fields = ["date_joined", "last_login", "is_superuser"]
 
 

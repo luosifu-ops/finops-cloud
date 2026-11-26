@@ -118,6 +118,21 @@ class IsManagerOrAbove(BasePermission):
         return bool(is_authenticated_user(u) and (u.is_superuser or u.role in ("BOSS", "MANAGER")))
 
 
+def can_assign_leads(user):
+    """线索分配能力：经理及以上天然拥有，或单点授权 can_assign_leads（2026-11-03 Boss 指示）"""
+    if not is_authenticated_user(user):
+        return False
+    if user.is_superuser or user.role in ("BOSS", "MANAGER"):
+        return True
+    return bool(getattr(user, "can_assign_leads", False))
+
+
+class CanAssignLeads(BasePermission):
+    """线索分配：部门经理及以上，或单点授权（不影响数据可见范围）"""
+    def has_permission(self, request, view):
+        return can_assign_leads(request.user)
+
+
 class IsLeaderOrAbove(BasePermission):
     """组长及以上（可查看团队数据）"""
     def has_permission(self, request, view):

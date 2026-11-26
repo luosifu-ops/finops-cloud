@@ -59,8 +59,21 @@
             <el-option label="0成交" value="S0" />
           </el-select>
         </el-form-item>
+        <!-- 2026-11-24 Boss 指示：恢复「待承接 / 已承接线索池」筛选（后端 closing 参数已支持） -->
+        <el-form-item label="承接状态">
+          <el-select v-model="filters.closing" placeholder="全部线索" clearable style="width:130px">
+            <el-option label="待承接" value="waiting" />
+            <el-option label="已承接" value="closed" />
+          </el-select>
+        </el-form-item>
+        <!-- 2026-11-23 Boss 指示：按录入日期筛选 -->
+        <el-form-item label="录入日期">
+          <el-date-picker v-model="filters.dateRange" type="daterange" value-format="YYYY-MM-DD"
+            start-placeholder="开始" end-placeholder="结束" style="width:240px" />
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" plain @click="loadData">查询</el-button>
+          <el-button @click="resetFilters">重置</el-button>
         </el-form-item>
       </el-form>
 
@@ -70,10 +83,10 @@
         <el-table-column v-if="canManage" type="selection" width="42" fixed="left" />
         <el-table-column prop="lead_name" label="客户" min-width="120" />
         <el-table-column prop="lead_phone" label="电话" width="130" />
-        <!-- 2026-11-02 Boss 指示：显示录入日期（后端 created_at = 实际录入时间，存量线索自带） -->
-        <el-table-column label="录入日期" width="150">
+        <!-- 2026-11-23 Boss 指示：录入日期可选；优先 input_date（entry_date 回退 created_at） -->
+        <el-table-column label="录入日期" width="120">
           <template #default="{ row }">
-            <span>{{ (row.created_at || '').slice(0, 16) }}</span>
+            <span>{{ row.input_date || (row.created_at || '').slice(0, 10) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="来源平台" width="110">
@@ -127,6 +140,12 @@
     <!-- 录入对话框 -->
     <el-dialog v-model="createVisible" title="录入线索（多平台）" width="620px">
       <el-form :model="form" label-width="120px">
+        <!-- 2026-11-23 Boss 指示：录入日期可选，默认当天，支持补录历史 -->
+        <el-form-item label="录入日期" required>
+          <el-date-picker v-model="form.entry_date" type="date" value-format="YYYY-MM-DD"
+            placeholder="默认当天" style="width:100%" />
+          <div class="form-tip">可补录历史日期；不填默认今天</div>
+        </el-form-item>
         <el-form-item label="来源平台" required>
           <el-select v-model="form.channel" placeholder="选择投放平台" style="width:100%">
             <el-option v-for="c in channels" :key="c.id" :label="c.name" :value="c.id" />
@@ -202,6 +221,10 @@
       <el-alert type="info" :closable="false" show-icon
                 title="仅修改录入信息，归属运营 / 承接人请走「分配」；保存后写入操作日志留痕" />
       <el-form :model="editForm" label-width="110px" style="margin-top:12px">
+        <el-form-item label="录入日期">
+          <el-date-picker v-model="editForm.entry_date" type="date" value-format="YYYY-MM-DD"
+            placeholder="录入日期" style="width:100%" />
+        </el-form-item>
         <el-form-item label="客户姓名" required>
           <el-input v-model="editForm.name" placeholder="客户姓名" />
         </el-form-item>
@@ -399,7 +422,14 @@ const total = ref(0)
 const poolWaiting = ref(0)
 const roleLabel = ref('未配置')
 
-const filters = reactive({ channel: '', stage: '' })
+const filters = reactive({ channel: '', stage: '', closing: '', dateRange: [] })
+function resetFilters() {
+  filters.channel = ''
+  filters.stage = ''
+  filters.closing = ''
+  filters.dateRange = []
+  loadData()
+}
 
 const createVisible = ref(false)
 const stageVisible = ref(false)
@@ -447,8 +477,16 @@ async function submitBulkAssign() {
 
 const form = reactive({
   channel: '', source_account_no: '', name: '', phone: '', wechat: '',
-  company: '', intention: '', remark: '', contact_type: 'PHONE'
+  company: '', intention: '', remark: '', contact_type: 'PHONE', entry_date: ''
 })
+
+// 本地当天日期（YYYY-MM-DD），避免 toISOString 的 UTC 时区偏差
+function todayStr() {
+  const d = new Date()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}
 
 const dealCount = computed(() => list.value.filter(r => r.stage_3570 === 'S0').length)
 // 录入权限（2026-11-02 与主账号对齐）：所有登录账号均可录入线索；
@@ -486,6 +524,11 @@ async function loadData() {
     const params = {}
     if (filters.channel) params.channel = filters.channel
     if (filters.stage) params.stage = filters.stage
+    if (filters.closing) params.closing = filters.closing
+    if (filters.dateRange && filters.dateRange.length === 2) {
+      params.date_from = filters.dateRange[0]
+      params.date_to = filters.dateRange[1]
+    }
     const res = await growthApi.leads(params)
     list.value = Array.isArray(res) ? res : (res.results || [])
     total.value = Array.isArray(res) ? res.length : (res.count || list.value.length)
@@ -563,7 +606,8 @@ async function loadAssignUsers() {
 function openCreate() {
   Object.assign(form, {
     channel: channels.value[0]?.id || '', source_account_no: '', name: '', phone: '',
-    wechat: '', company: '', intention: '', remark: '', contact_type: 'PHONE'
+    wechat: '', company: '', intention: '', remark: '', contact_type: 'PHONE',
+    entry_date: todayStr()
   })
   createVisible.value = true
 }
@@ -628,7 +672,7 @@ const editing = ref(false)
 const editForm = reactive({
   id: null, name: '', phone: '', intention: '', channel: null,
   source_account_no: '', contact_type: 'PHONE', contact_value: '',
-  contact_person: '', customer_need: '', deal_amount: 0,
+  contact_person: '', customer_need: '', deal_amount: 0, entry_date: '',
 })
 
 function openEdit(row) {
@@ -645,6 +689,7 @@ function openEdit(row) {
     contact_person: row.contact_person || '',
     customer_need: row.customer_need || '',
     deal_amount: Number(row.deal_amount || 0),
+    entry_date: row.input_date || (row.created_at || '').slice(0, 10) || '',
   })
   editVisible.value = true
 }
@@ -811,6 +856,7 @@ onMounted(() => {
 .main-card { margin-top: 4px; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .filter-bar { margin-bottom: 8px; }
+.form-tip { font-size: 12px; color: #909399; line-height: 1.3; margin-top: 2px; }
 .muted { color: #909399; }
 .opt-dept { float: right; color: #a8abb2; font-size: 12px; }
 /* 2026-11-02 跟进记录抽屉 */

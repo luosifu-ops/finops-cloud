@@ -32,7 +32,7 @@ from .serializers import (
 from .permissions import (
     can_view_all, leads_scope_all, dept_scope_ids, scope_leads, scope_field_tasks, scope_projects,
     IsGrowthAdmin, IsOpsOrAdmin, IsCloserOrAdmin, IsFieldOrAdmin,
-    IsFieldManagerOrAdmin, is_field_manager,
+    IsFieldManagerOrAdmin, is_field_manager, IsGrowthAssigner, is_closer,
 )
 
 # 旧 Lead.SOURCE 的合法枚举（新平台落 OTHER，保证旧模块不受影响）
@@ -134,6 +134,21 @@ class LeadExtViewSet(viewsets.ModelViewSet):
             qs = qs.filter(in_pool=True)
         if p.get("closer"):
             qs = qs.filter(closer_id=p["closer"])
+        # 2026-11-03 Boss 指示：线索池承接状态筛选（待承接 / 已承接）
+        closing = p.get("closing")
+        if closing == "waiting":
+            qs = qs.filter(closer__isnull=True)
+        elif closing == "closed":
+            qs = qs.filter(closer__isnull=False)
+        # 2026-11-23 Boss 指示：按「录入日期」筛选（优先 entry_date，存量回退 created_at）
+        date_from = p.get("date_from") or p.get("start_date")
+        date_to = p.get("date_to") or p.get("end_date")
+        if date_from:
+            from django.db.models import Q as _Q
+            qs = qs.filter(_Q(entry_date__gte=date_from) | _Q(entry_date__isnull=True, created_at__date__gte=date_from))
+        if date_to:
+            from django.db.models import Q as _Q
+            qs = qs.filter(_Q(entry_date__lte=date_to) | _Q(entry_date__isnull=True, created_at__date__lte=date_to))
         return qs.order_by("-created_at")
 
     # ---------- 录入（运营） ----------
@@ -161,8 +176,10 @@ class LeadExtViewSet(viewsets.ModelViewSet):
         if closer_id:
             from apps.accounts.models import User
             closer = User.objects.filter(id=closer_id).first()
-        if closer is None:
-            closer = _auto_pick_closer(channel)   # 按平台专项分配
+        # 2026-11-25 Boss 指示：取消自动派单 —— 录入未指定成交师时一律进公海待承接，
+        # 由管理层分配或成交师自行「承接/领取」后，才进入成交师的已承接池。
+        # （此前 _auto_pick_closer 按平台绑定自动塞 closer，导致线索未经分派就出现在成交师已承接池）
+        # closer = _auto_pick_closer(channel)  # 已停用：系统不再自动派单
 
         # 1) 在原 Lead 表新增一条记录（不改动 Lead 任何结构）
         lead = Lead.objects.create(
@@ -192,6 +209,7 @@ class LeadExtViewSet(viewsets.ModelViewSet):
             contact_person=d.get("contact_person") or "",
             acquisition_cost=d.get("acquisition_cost") or 0,
             deal_amount=d.get("deal_amount") or 0,
+            entry_date=d.get("entry_date") or timezone.localdate(),
             created_by=user,
         )
         # 3) 流转留痕
@@ -216,7 +234,7 @@ class LeadExtViewSet(viewsets.ModelViewSet):
         "contact_type": "联系方式类型", "contact_value": "联系方式",
         "customer_need": "客户需求", "contact_person": "联系人",
         "acquisition_cost": "获客成本", "deal_amount": "成交金额",
-        "stage_3570": "3570阶段",
+        "stage_3570": "3570阶段", "entry_date": "录入日期",
     }
     # 可改的原线索字段（回写 sales.Lead，仅改内容不改结构）
     LEAD_EDIT_LEAD_FIELDS = {
@@ -338,10 +356,20 @@ class LeadExtViewSet(viewsets.ModelViewSet):
         return Response({"detail": "已承接", "id": ext.id})
 
     # ---------- 退回公海 ----------
-    @action(detail=True, methods=["post"], permission_classes=[IsCloserOrAdmin])
+    @action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated])
     def return_pool(self, request, pk=None):
-        """承接人无法跟进 → 退回公海，支持二次分配"""
+        """承接人无法跟进 → 退回公海，支持二次分配
+
+        2026-11-24 Boss 指示：普通员工也要能使用流转功能——
+        放宽为「管理层 / 成交师 / 本人录入(ops_owner) / 本人承接(closer)」可退；
+        数据隔离由 get_queryset 的 scope_leads 兜底：不相关的人根本查不到该线索（404）。
+        """
         ext = self.get_object()
+        u = request.user
+        if not (can_view_all(u) or is_closer(u)
+                or ext.ops_owner_id == u.id or ext.closer_id == u.id):
+            return Response({"detail": "仅录入人、承接人或管理层可退回公海"},
+                            status=status.HTTP_403_FORBIDDEN)
         reason = request.data.get("reason") or "无法跟进"
         with transaction.atomic():
             ext.closer = None
@@ -403,7 +431,8 @@ class LeadExtViewSet(viewsets.ModelViewSet):
         return Response({"detail": "已转派", "id": ext.id})
 
     # ---------- 管理层分配（手动指派运营/成交师） ----------
-    @action(detail=True, methods=["post"], permission_classes=[IsGrowthAdmin])
+    # 2026-11-03：权限放宽为「增长管理员 或 单点授权 can_assign_leads」（Boss 指示）
+    @action(detail=True, methods=["post"], permission_classes=[IsGrowthAssigner])
     def assign(self, request, pk=None):
         """管理层手动分配线索给某运营 / 成交师（仅管理层 can_view_all 可调）
 
@@ -469,7 +498,8 @@ class LeadExtViewSet(viewsets.ModelViewSet):
         })
 
     # ---------- 批量分配（Boss 2026-10-29：线索批量分配专项） ----------
-    @action(detail=False, methods=["post"], url_path="bulk-assign", permission_classes=[IsGrowthAdmin])
+    # 2026-11-03：权限放宽为「增长管理员 或 单点授权 can_assign_leads」
+    @action(detail=False, methods=["post"], url_path="bulk-assign", permission_classes=[IsGrowthAssigner])
     def bulk_assign(self, request):
         """批量分配线索：{"ids": [...], "owner_id": x, "closer_id": y, "remark": "..."}
         owner_id / closer_id 至少一项；逐条复用单条 assign 逻辑并写 LeadFlow 留痕。"""
@@ -1224,13 +1254,18 @@ class GrowthRoleViewSet(viewsets.ModelViewSet):
             permission_classes=[permissions.IsAuthenticated])
     def me(self, request):
         """当前登录人的增长中心角色（任何登录用户可看自己的）"""
+        # 2026-11-03：附带单点授权 can_assign_leads，供前端「分配」按钮显隐
+        from apps.common.permissions import can_assign_leads as _can_assign_leads
+        _assign = _can_assign_leads(request.user)
         r = getattr(request.user, "growth_role", None)
         if not r:
-            return Response({"has_role": False, "can_view_all": can_view_all(request.user)})
+            return Response({"has_role": False, "can_view_all": can_view_all(request.user),
+                             "can_assign_leads": _assign})
         return Response({
             "has_role": True,
             "role": r.role,
             "role_label": r.get_role_display(),
             "dept_key": r.dept_key,
             "can_view_all": can_view_all(request.user),
+            "can_assign_leads": _assign,
         })

@@ -50,15 +50,20 @@ def spa_view(request, path=""):
         if os.path.isfile(candidate) and os.path.abspath(candidate).startswith(
             os.path.abspath(SPA_ROOT)
         ):
-            return FileResponse(
-                open(candidate, "rb"), content_type=_content_type(rel)
-            )
+            resp = FileResponse(open(candidate, "rb"), content_type=_content_type(rel))
+            # 带内容哈希的 assets 可长缓存（2026-11-03：修复浏览器缓存旧页面问题）
+            if "/assets/" in rel:
+                resp["Cache-Control"] = "public, max-age=31536000, immutable"
+            return resp
 
     # 2) SPA 回退：交给前端路由
     index_path = os.path.join(SPA_ROOT, "index.html")
     try:
         with open(index_path, "rb") as f:
-            return HttpResponse(f.read(), content_type="text/html; charset=utf-8")
+            resp = HttpResponse(f.read(), content_type="text/html; charset=utf-8")
+            # index.html 不缓存：部署新版后浏览器刷新即拿到新 hash 引用（2026-11-03）
+            resp["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            return resp
     except FileNotFoundError:
         return HttpResponse(
             "前端资源未找到：请先执行前端构建并将产物放入 backend/spa/。",

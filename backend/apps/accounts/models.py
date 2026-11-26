@@ -108,6 +108,10 @@ class User(AbstractUser):
         related_name="members", verbose_name="职级序列")
     role = models.CharField("角色", max_length=20, choices=ROLE_CHOICES, default="EMPLOYEE")
     status = models.CharField("在职状态", max_length=20, choices=STATUS_CHOICES, default="PROBATION")
+    # 2026-11-03 Boss 指示：单点授权——不开经理角色，仅放开「线索分配」能力
+    can_assign_leads = models.BooleanField(
+        "可分配线索", default=False,
+        help_text="单点授权：开启后可使用线索分配功能（销售线索指派 / 增长中心分配），不影响数据可见范围")
 
     entry_date = models.DateField("入职日期", null=True, blank=True)
     regular_date = models.DateField("转正日期", null=True, blank=True)

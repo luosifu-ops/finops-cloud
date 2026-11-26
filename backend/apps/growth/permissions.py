@@ -178,6 +178,17 @@ class IsGrowthAdmin(BasePermission):
         return can_view_all(request.user)
 
 
+class IsGrowthAssigner(BasePermission):
+    """线索分配（2026-11-03 Boss 指示）：增长管理员，或单点授权 can_assign_leads
+
+    仅放开「分配」动作本身，不改变线索数据可见范围（scope 仍由各自 queryset 决定）。
+    """
+
+    def has_permission(self, request, view):
+        u = request.user
+        return can_view_all(u) or bool(getattr(u, "can_assign_leads", False))
+
+
 class IsOpsOrAdmin(BasePermission):
     """运营或管理员（线索录入权限）"""
 
