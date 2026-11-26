@@ -85,6 +85,21 @@ def is_ops(user):
     return bool(r and r.role == "OPS")
 
 
+def is_ops_dept(user):
+    """是否运营部成员（2026-11-26 Boss 指示）
+
+    判定口径三选一命中即算：组织部门=运营部 / 增长角色归属运营部（dept_key=OPS）
+    / 增长职能角色=运营（role=OPS）。与前端菜单的「运营部」口径一致。
+    """
+    if not user or not user.is_authenticated:
+        return False
+    dept = getattr(user, "department", None)
+    if dept is not None and (getattr(dept, "name", "") or "") == "运营部":
+        return True
+    r = growth_role_of(user)
+    return bool(r and (r.dept_key == "OPS" or r.role == "OPS"))
+
+
 def is_closer(user):
     r = growth_role_of(user)
     return bool(r and r.role == "CLOSER")
@@ -126,6 +141,18 @@ def scope_leads(qs, user):
     # 2) 职能角色
     r = growth_role_of(user)
     role = r.role if r else None
+    # 1.5) 运营部成员（2026-11-26 Boss 指示）
+    #   运营部所有人的账号：可看到「自己名下全部线索」——归属运营人 / 承接人 /
+    #   录入人（LeadExt.created_by 或原 Lead.created_by）任一命中即可见，
+    #   覆盖「线索被管理层改派归属后原录入人看不到」的情况。
+    #   成交师身份保留原有的公海待承接可见；外勤仍不参与线索池。
+    #   （已承接线索池菜单仍为成交师 / 管理层专属，本次未放开）
+    if is_ops_dept(user) and role != "FIELD":
+        q = (Q(ops_owner=user) | Q(closer=user)
+             | Q(created_by=user) | Q(lead__created_by=user))
+        if role == "CLOSER":
+            q |= Q(in_pool=True)
+        return qs.filter(q).distinct()
     if role == "OPS":
         # 运营本人：仅自己录入的线索（可看承接进度）
         return qs.filter(ops_owner=user).distinct()

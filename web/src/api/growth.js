@@ -41,6 +41,32 @@ export const growthApi = {
 
   // ---------- 线索录入与流转 ----------
   leads: (params) => http.get(`${G}/leads/`, { params }),
+  // 2026-11-26 Boss 指示：线索池 / 已承接线索池要看到自己名下的「全部」线索，
+  // 不再受后端默认每页 20 条限制。自动逐页取完并合并，返回 { results, count }。
+  // 说明：后端 /growth/leads/ 用全局默认分页（每页固定 20 条、不认 page_size），
+  // 故按 count 算出总页数后并发取页（每批 10 页），避免线索多时串行等待过长。
+  allLeads: async (params) => {
+    const MAX_PAGES = 2000            // 安全上限 4 万条，防止异常时死循环
+    const BATCH = 10
+    const first = await http.get(`${G}/leads/`, { params: { ...(params || {}), page: 1 } })
+    if (Array.isArray(first)) return { results: first, count: first.length }
+    let results = first.results || []
+    const count = first.count ?? results.length
+    const pageSize = results.length || 20
+    const pages = Math.min(Math.ceil(count / pageSize), MAX_PAGES)
+    // 取数途中数据被删导致页码越界时后端返回 404，按空页处理（其余错误照常抛出）
+    const fetchPage = (page) =>
+      http.get(`${G}/leads/`, { params: { ...(params || {}), page } })
+        .then(r => (r && r.results) || [])
+        .catch(e => { if (e && e.response && e.response.status === 404) return []; throw e })
+    for (let start = 2; start <= pages; start += BATCH) {
+      const batch = []
+      for (let p = start; p < Math.min(start + BATCH, pages + 1); p++) batch.push(fetchPage(p))
+      const parts = await Promise.all(batch)
+      parts.forEach(part => { results = results.concat(part) })
+    }
+    return { results, count }
+  },
   createLead: (data) => http.post(`${G}/leads/`, data),
   leadDetail: (id) => http.get(`${G}/leads/${id}/`),
   acceptLead: (id) => http.post(`${G}/leads/${id}/accept/`),

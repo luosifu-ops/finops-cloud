@@ -361,8 +361,9 @@ async function loadData() {
     const params = {}
     if (filters.channel) params.channel = filters.channel
     if (filters.account) params.source_account_no = filters.account
-    const res = await growthApi.leads(params)
-    list.value = Array.isArray(res) ? res : (res.results || [])
+    // 2026-11-26 Boss 指示：线索转化看板展示「全部」线索，不再受默认每页 20 条限制
+    const res = await growthApi.allLeads(params)
+    list.value = res.results || []
   } finally { loading.value = false }
 }
 function resetFilter() { filters.channel = ''; filters.account = ''; loadData() }

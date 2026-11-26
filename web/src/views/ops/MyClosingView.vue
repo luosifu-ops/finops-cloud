@@ -12,8 +12,12 @@
               <el-option label="5 阶段" value="S5" />
               <el-option label="7 阶段" value="S7" />
               <el-option label="0 成交" value="S0" />
-              <!-- 2026-11-09 Boss 指示：增加「无需求」阶段 -->
-              <el-option label="无需求" value="SN" />
+              <el-option-group label="其他需求">
+                <!-- 2026-11-09 Boss 指示：增加「无需求」阶段 -->
+                <el-option label="无需求" value="SN" />
+                <!-- 2026-11-26 Boss 指示：「其他需求」新增「暂时无需求」 -->
+                <el-option label="暂时无需求" value="ST" />
+              </el-option-group>
             </el-select>
             <el-button @click="loadData">刷新</el-button>
           </div>
@@ -65,11 +69,17 @@
     </el-card>
 
     <!-- 标记 / 修改 / 取消阶段（2026-11-09 Boss 指示：标错了可改可取消，另有「无需求」阶段） -->
-    <el-dialog v-model="stageVisible" :title="stageRow?.stage_3570 ? '修改 3570 阶段' : '标记 3570 阶段'" width="360px">
+    <el-dialog v-model="stageVisible" :title="stageRow?.stage_3570 ? '修改 3570 阶段' : '标记 3570 阶段'" width="420px">
       <el-alert type="info" :closable="false" show-icon style="margin-bottom: 12px"
                 :title="`当前阶段：${stageRow?.stage_label || '未标记'}，标错了直接重新选一个再确认即可，系统保留变更记录`" />
       <el-radio-group v-model="stageForm.stage">
         <el-radio-button v-for="(label, val) in STAGE_3570" :key="val" :value="val">{{ label }}</el-radio-button>
+      </el-radio-group>
+      <!-- 2026-11-26 Boss 指示：3570 板块增加「编辑其他需求」——客户无需求 / 暂时无需求
+           （无需求原来就有，保留；暂时无需求原来没有，新增）。与上面的阶段互斥，同存一个字段，不新增表结构 -->
+      <div class="need-title">其他需求</div>
+      <el-radio-group v-model="stageForm.stage">
+        <el-radio-button v-for="(label, val) in OTHER_NEED" :key="val" :value="val">{{ label }}</el-radio-button>
       </el-radio-group>
       <template #footer>
         <el-popconfirm title="确认取消该线索的阶段标记？（变更留痕，可重新标记）"
@@ -234,10 +244,13 @@ const viewAll = ref(false)
 // 2026-11-05 修复「阶段值非法」：必须用后端 LeadExt.STAGE_3570 真实编码 S0/S3/S5/S7，
 // 原来发的是 '0/1/3/5/7'，后端不识别直接 400；且后端本无「1 阶段」，一并移除。
 // 2026-11-09：新增「无需求(SN)」阶段（有的客户不属于 3/5/7/0）
-const STAGE_3570 = { S3: '3 阶段', S5: '5 阶段', S7: '7 阶段', S0: '0 成交', SN: '无需求' }
+// 2026-11-26 Boss 指示：「其他需求」= 客户无需求(SN，原有) / 暂时无需求(ST，新增)，
+// 与 3/5/7/0 阶段互斥、共用同一个字段（后端 LeadExt.STAGE_3570），不新增表结构。
+const STAGE_3570 = { S3: '3 阶段', S5: '5 阶段', S7: '7 阶段', S0: '0 成交' }
+const OTHER_NEED = { SN: '无需求', ST: '暂时无需求' }
 const WAY_LABELS = { PHONE: '电话', WECHAT: '微信', VISIT: '上门', MEETING: '会议', OTHER: '其他' }
 
-const stageTagType = (s) => ({ S3: 'primary', S5: 'warning', S7: 'danger', S0: 'success', SN: 'danger' }[s] || 'info')
+const stageTagType = (s) => ({ S3: 'primary', S5: 'warning', S7: 'danger', S0: 'success', SN: 'danger', ST: 'info' }[s] || 'info')
 
 async function loadData() {
   loading.value = true
@@ -245,7 +258,8 @@ async function loadData() {
     const params = {}
     if (!viewAll.value) params.closer = store.userInfo?.id
     if (stageFilter.value) params.stage = stageFilter.value
-    const res = await growthApi.leads(params)
+    // 2026-11-26 Boss 指示：承接人要看到自己承接的「全部」线索，不再受默认每页 20 条限制
+    const res = await growthApi.allLeads(params)
     const body = Array.isArray(res) ? { results: res } : (res || {})
     list.value = body.results || []
     total.value = body.count ?? list.value.length
@@ -499,4 +513,6 @@ async function removeFollowup(f) {
 .fup-item .fup-ops { margin-left: auto; }
 .fup-item .fup-content { margin: 6px 0 0; color: #444; line-height: 1.6; white-space: pre-wrap; }
 .muted { color: #aaa; }
+/* 2026-11-26：阶段弹窗「其他需求」分组标题 */
+.need-title { margin: 14px 0 8px; font-size: 13px; font-weight: 600; color: #666; }
 </style>

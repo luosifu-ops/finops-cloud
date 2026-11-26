@@ -576,6 +576,8 @@ class LeadExtViewSet(viewsets.ModelViewSet):
         1) 新增「无需求(SN)」阶段——有的客户不属于 3/5/7/0 任何一类；
         2) 支持取消标记——stage 传空串/null 即清空阶段，标记错了可改可撤；
            所有变更（含清空）均写入 LeadStageLog 留痕。
+        2026-11-26 Boss 指示：「其他需求」新增「暂时无需求(ST)」，无需求(SN) 保留；
+        前端标记弹窗按「阶段 / 其他需求」分组展示，后端逻辑不变。
         """
         ext = self.get_object()
         # 空串 / null 一律视为「取消标记」

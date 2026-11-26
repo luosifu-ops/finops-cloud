@@ -540,9 +540,10 @@ async function loadData() {
     if (filters.closing) params.closing = filters.closing
     // 2026-11-09：录入人多选筛选，逗号拼接传后端
     if (filters.creators && filters.creators.length) params.creators = filters.creators.join(',')
-    const res = await growthApi.leads(params)
-    list.value = Array.isArray(res) ? res : (res.results || [])
-    total.value = Array.isArray(res) ? res.length : (res.count || list.value.length)
+    // 2026-11-26 Boss 指示：录入人 / 承接人要看到自己名下的「全部」线索，不再受默认每页 20 条限制
+    const res = await growthApi.allLeads(params)
+    list.value = res.results || []
+    total.value = res.count ?? list.value.length
     const p = await growthApi.statsPool()
     poolWaiting.value = p.waiting || 0
   } finally {
